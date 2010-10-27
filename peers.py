@@ -4,15 +4,16 @@
 # file: peers.py
 # vim:ts=8:sw=4:sts=4
 
-''' Pure Python prototype '''
+''' Pure Python version '''
 
 from __future__ import division
-from argparse import ArgumentParser
+from argparse import ArgumentParser, FileType
 import numpy as np
 from collections import deque
 import sys
+from time import time
 
-from _randwpmf import randwpmf
+from rand import randwpmf
 
 # custom warning formatting
 formatwarning = lambda msg,cat,fn,lno,l: '*** WARNING *** ' + msg.args[0] + '\n'
@@ -71,9 +72,10 @@ def interaction(args, prng, users, pages, pairs, update_opinions=True):
                     p.opinion += args.speed * ( u.opinion - p.opinion )
                 elif prng.rand() < args.rollback_prob:
                     p.opinion += args.speed * ( u.opinion - p.opinion )
+            print args.time, i, j
+            args.noedits += 1
         users[i] = u
         pages[j] = p
-        print args.time, i, j
 
 def selection(args, prng, users, pages):
     '''
@@ -103,14 +105,20 @@ def update(args, prng, users, pages):
     rvs = prng.rand(len(users))
     removed = 0
     for i in xrange(len(users)):
-        idx = i - removed
-        if rvs[idx] <= args.p_stop * users[idx].p_leave ** args.stop_exp:
+        idx = i - removed # deleting shrink the list so need to update idx
+        if rvs[i] <= args.p_stop * users[idx].p_leave ** args.stop_exp:
             del users[idx]
             removed += 1
     users.extend([ User(args, prng, args.const_succ, args.const_succ) for i in 
             xrange(prng.poisson(args.user_input_rate)) ])
     pages.extend([ Page(args, prng, args.const_pop) for i in
             xrange(prng.poisson(args.page_input_rate)) ])
+    if args.info_file:
+        info = {}
+        info['time'] = args.time
+        info['users'] = len(users)
+        info['pages'] = len(pages)
+        args.info_file.write('%(time)s %(users)s %(pages)s\n' % info)
 
 def step_forward(args, prng, users, pages, transient):
     dt = args.time_step
@@ -118,33 +126,27 @@ def step_forward(args, prng, users, pages, transient):
         steps = args.num_transient_steps 
     else:
         steps = args.num_steps
-    args.rate = np.sum([ u.p_activ for u in users])
-    if transient:
-        for step in xrange(steps):
-            pairs = selection(args, prng, users, pages)
-            interaction(args, prng, users, pages, pairs, update_opinions=False)
-            update(args, prng, users, pages)
-            print >> sys.stderr, len(users)
-    else:
-        args.time = 0.0
-        for step in xrange(steps):
-            # see above
-            pairs = selection(args, prng, users, pages)
-            interaction(args, prng, users, pages, pairs)
-            update(args, prng, users, pages)
-            args.time += args.time_step
-#            print >> sys.stderr, args.time, len(users)
+    for step in xrange(steps):
+        pairs = selection(args, prng, users, pages)
+        interaction(args, prng, users, pages, pairs, update_opinions=transient)
+        update(args, prng, users, pages)
+        args.time += args.time_step
 
 def simulate(args):
     prng = np.random.RandomState(args.seed)
     user_op = prng.rand(args.num_users)
-    page_op = prng.rand(arngs.num_pages)
+    page_op = prng.rand(args.num_pages)
     users = [ User(args, prng, args.const_succ, args.const_succ, user_op[i]) 
             for i in xrange(args.num_users) ]
     pages = [ Page(args, prng, args.const_pop, page_op[i]) for i in 
             xrange(args.num_pages) ] 
+    args.time = 0.0
     step_forward(args, prng, users, pages, 1) # don't output anything
+    args.noedits = 0
+    start_time = time()
     step_forward(args, prng, users, pages, 0) # actual simulation output
+    speed = args.noedits / (time() - start_time) 
+    print >> sys.stderr, " *** Speed: %g (interactions/sec)" % speed
     return prng, users, pages
 
 desc = 'The `Peers\' agent-based model © (2010) G.L. Ciampaglia'
@@ -160,10 +162,16 @@ def make_parser():
             help='seed of the pseudo-random numbers generator', metavar='seed')
     #
     # optional arguments
+    parser.add_argument('-i', '--info_file', type=FileType('w'), default=False,
+            help='write simulation info to file', metavar='file')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
             help='do not simulate, just print parameters defaults')
     parser.add_argument('-D','--debug', action='store_true', default=False, 
             help='raise Python exceptions to the console')
+    parser.add_argument('--profile', action='store_true', default=False,
+            help='run profiling')
+    parser.add_argument('--profile-file', metavar='file', default=None,
+            help="store profiling information in file")
     parser.add_argument('-u', '--num-users', type=int, default=0,
             help='initial number of users', metavar='value')
     parser.add_argument('-p', '--num-pages', type=int, default=0,
@@ -257,6 +265,12 @@ def check_arguments(args):
     if args.speed == 0:
         warn('null opinion update', category=UserWarning)
 
+__all__ = [
+        'make_parser',
+        'check_arguments',
+        'print_arguments',
+]
+
 if __name__ == '__main__':
     parser = make_parser()
     ns = parser.parse_args()
@@ -264,7 +278,14 @@ if __name__ == '__main__':
         check_arguments(ns)
         print_arguments(ns)
         if not ns.dry_run:
-            prng, users, pages = simulate(ns)
+            if ns.profile:
+                import pstats, cProfile
+                fn = ns.profile_file or __file__ + ".prof"
+                cProfile.runctx('simulate(ns)', globals(), locals(), fn)
+                stats = pstats.Stats(fn)
+                stats.strip_dirs().sort_stats("time").print_stats()
+            else:
+                prng, users, pages = simulate(ns)
     except:
         ty, val, tb = sys.exc_info()
         if ns.debug:
@@ -272,3 +293,6 @@ if __name__ == '__main__':
         else:
             name = ty.__name__
             print >> sys.stderr, '\n%s: %s\n' % (name, val)
+    finally:
+        if ns.info_file:
+            ns.info_file.close()

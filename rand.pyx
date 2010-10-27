@@ -1,5 +1,5 @@
 #coding: utf-8
-#cython: profile=False
+#cython: profile=True
 from __future__ import division
 import numpy as np
 cimport numpy as cnp
@@ -22,7 +22,9 @@ cdef inline int _randwpmf(object pmfarr, object prng=np.random) except? -1:
         DTYPE_t norm_sum = 0.0
         DTYPE_t u = prng.random_sample()
         int i
-    norm_sum = np.sum(pmf)
+    norm_sum = 0.
+    for i in xrange(len(pmf)):
+        norm_sum += pmf[i]
     if norm_sum <= 0.:
         raise ValueError('argument is not a valid probability mass function')
     for i in range(n):

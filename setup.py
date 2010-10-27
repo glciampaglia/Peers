@@ -5,9 +5,13 @@ from Cython.Distutils import build_ext
 from numpy import get_include
 numpy_include = get_include()
 
-ext_rand = Extension("_randwpmf",
-        [ "_randwpmf.pyx" ],
+ext_rand = Extension("rand",
+        [ "rand.pyx" ],
         include_dirs=[ numpy_include ])
+
+ext_cpeers = Extension("_cpeers",
+        [ "cpeers.pyx" ],
+        include_dirs=[ numpy_include, '.' ])
 
 #import numpy as np
 #from os.path import dirname, join
@@ -23,5 +27,5 @@ ext_rand = Extension("_randwpmf",
 
 setup(
         cmdclass = dict(build_ext=build_ext),
-        ext_modules = [ ext_rand, ]
+        ext_modules = [ ext_rand, ext_cpeers ]
 )
