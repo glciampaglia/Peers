@@ -90,7 +90,7 @@ def selection(args, prng, users, pages):
             editing_users.append(i)
     # pages are drawn with prob. proportional to popularity (i.e. # of edits)
     page_pmf = np.asarray([ p.edits for p in pages], dtype=np.double)
-    editing_pages = randwpmf(page_pmf, size=(len(editing_users),), prng=prng)
+    editing_pages = randwpmf(page_pmf, num=len(editing_users), prng=prng)
     # if a page occurs more than once, only the first user edits it
     already_edited = []
     res = deque()
@@ -128,7 +128,7 @@ def step_forward(args, prng, users, pages, transient):
         steps = args.num_steps
     for step in xrange(steps):
         pairs = selection(args, prng, users, pages)
-        interaction(args, prng, users, pages, pairs, update_opinions=transient)
+        interaction(args, prng, users, pages, pairs, update_opinions=1-transient)
         update(args, prng, users, pages)
         args.time += args.time_step
 
@@ -141,12 +141,14 @@ def simulate(args):
     pages = [ Page(args, prng, args.const_pop, page_op[i]) for i in 
             xrange(args.num_pages) ] 
     args.time = 0.0
-    step_forward(args, prng, users, pages, 1) # don't output anything
-    args.noedits = 0
-    start_time = time()
-    step_forward(args, prng, users, pages, 0) # actual simulation output
-    speed = args.noedits / (time() - start_time) 
-    print >> sys.stderr, " *** Speed: %g (interactions/sec)" % speed
+    try:
+        start_time = time()
+        step_forward(args, prng, users, pages, 1) # don't output anything
+        args.noedits = 0
+        step_forward(args, prng, users, pages, 0) # actual simulation output
+    finally:
+        speed = args.noedits / (time() - start_time) 
+        print >> sys.stderr, " *** Speed: %g (interactions/sec)" % speed
     return prng, users, pages
 
 desc = 'The `Peers\' agent-based model © (2010) G.L. Ciampaglia'

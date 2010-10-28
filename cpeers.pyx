@@ -1,5 +1,5 @@
 # coding=utf-8
-# cython: profile=False
+# cython: profile=True
 
 # file: cpeers.pyx
 # vim:ts=8:sw=4:sts=4
@@ -12,13 +12,17 @@ from collections import deque
 import sys
 import cython
 from time import time
-
-# from rand cimport _randwpmf
 from rand import randwpmf
+
+# cimports
+# from rand cimport *
 cimport numpy as cnp
+
+cdef int USER_ID_MAX = 0
 
 cdef class User:
     cdef public double opinion, edits, successes, p_activ
+    cdef public int id
     def __init__(self, 
             object args, 
             object prng, 
@@ -26,6 +30,7 @@ cdef class User:
             double successes,
             object opinion, 
             object p_activ):
+        global USER_ID_MAX
         self.edits = edits
         self.successes = successes
         if opinion is None:
@@ -36,9 +41,12 @@ cdef class User:
             self.p_activ = prng.rand() * args.p_max
         else:
             self.p_activ = <double> p_activ
+        self.id = USER_ID_MAX
+        USER_ID_MAX += 1
+
 
 @cython.profile(False)
-cdef inline double p_leave(User user) except? -1:
+cdef inline double ratio(User user) except? -1:
     cdef double den = user.edits
     cdef double num = user.successes
     assert num <= den, "user will never stop"
@@ -47,11 +55,17 @@ cdef inline double p_leave(User user) except? -1:
     else:
         return 1.
 
+cdef int PAGE_ID_MAX = 0
+
 cdef class Page:
-    cdef public opinion, edits
+    cdef public double opinion, edits
+    cdef public int id
     def __init__(self, object args, object prng, double edits, double opinion):
+        global PAGE_ID_MAX
         self.opinion = opinion
         self.edits = edits
+        self.id = PAGE_ID_MAX
+        PAGE_ID_MAX += 1
 
 cdef interaction(object args, object prng, object users, object pages, object pairs, int update_opinions):
     cdef User u
@@ -76,7 +90,7 @@ cdef interaction(object args, object prng, object users, object pages, object pa
                     p.opinion += speed * ( u.opinion - p.opinion )
                 elif prng.rand() < rollback_prob:
                     p.opinion += speed * ( u.opinion - p.opinion )
-            print args.time, i, j
+            print args.time, u.id, p.id
             args.noedits += 1
         users[i] = u
         pages[j] = p
@@ -96,10 +110,7 @@ cdef object selection(object args, object prng, object users, object pages):
             editing_users.append(i)
     # pages are drawn with prob. proportional to popularity (i.e. # of edits)
     page_pmf = np.asarray([ p.edits for p in pages], dtype=np.double)
-# XXX BUG with cimport in Python 2.6.6
-#    editing_pages = [ _randwpmf(page_pmf, prng) for i in
-#            xrange(len(editing_users)) ]
-    editing_pages = randwpmf(page_pmf, size=(len(editing_users),), prng=prng)
+    editing_pages = randwpmf(page_pmf, num=len(editing_users), prng=prng)
     # if a page occurs more than once, only the first user edits it
     already_edited = []
     res = deque()
@@ -118,10 +129,11 @@ cdef update(object args, object prng, object users, object pages):
     for i in xrange(len(users)):
         idx = i - removed # deleting shrinks the list so need to update idx
         u = <User> users[idx]
-        if rvs[i] <= p_stop * p_leave(u) ** stop_exp:
+        if rvs[i] <= 1 + ratio(u) * ( p_stop - 1): #** stop_exp:
             del users[idx]
             removed += 1
-    users.extend([ User(args, prng, args.const_succ, args.const_succ, None, None) for i in 
+    users.extend([ User(args, prng, args.const_succ, args.const_succ, None,
+        args.p_max) for i in 
             xrange(prng.poisson(args.user_input_rate)) ])
     pages.extend([ Page(args, prng, args.const_pop, -1) for i in
             xrange(prng.poisson(args.page_input_rate)) ])
@@ -141,21 +153,24 @@ cdef step_forward(args, prng, users, pages, transient):
         steps = args.num_steps
     for step in xrange(steps):
         pairs = selection(args, prng, users, pages)
-        interaction(args, prng, users, pages, pairs, transient)
+        interaction(args, prng, users, pages, pairs, 1-transient)
         update(args, prng, users, pages)
         args.time += args.time_step
 
 cpdef simulate(args):
     prng = np.random.RandomState(args.seed)
-    users = [ User(args, prng, args.const_succ, args.const_succ, prng.rand(), None) 
+    users = [ User(args, prng, args.const_succ, args.const_succ, prng.rand(),
+        args.p_max) 
             for i in xrange(args.num_users) ]
     pages = [ Page(args, prng, args.const_pop, -1) for i in 
             xrange(args.num_pages) ] 
     args.time = 0.0
-    step_forward(args, prng, users, pages, 1) # don't output anything
-    args.noedits = 0
-    start_time = time()
-    step_forward(args, prng, users, pages, 0) # actual simulation output
-    speed = args.noedits / (time() - start_time) 
-    print >> sys.stderr, " *** Speed: %g (interactions/sec)" % speed
+    try:
+        start_time = time()
+        step_forward(args, prng, users, pages, 1) # don't output anything
+        args.noedits = 0
+        step_forward(args, prng, users, pages, 0) # actual simulation output
+    finally:
+        speed = args.noedits / (time() - start_time) 
+        print >> sys.stderr, " *** Speed: %g (interactions/sec)" % speed
     return prng, users, pages

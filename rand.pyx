@@ -2,40 +2,67 @@
 #cython: profile=True
 from __future__ import division
 import numpy as np
+from collections import deque
+
 cimport numpy as cnp
 cimport cython
+
 
 DTYPE = np.float64
 ctypedef cnp.float64_t DTYPE_t
 
+@cython.profile(False)
+@cython.wraparound(False)
+@cython.boundscheck(False)
+cdef inline int _supidx(float x, object seq, int start, int stop):
+    ''' binary search: recursively find the index of sup{x} in seq (i.e. the
+    element on the right). The sequence *must* be ordered '''
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] _seq = seq
+    if x <= _seq[start]:
+        return start
+    if stop - start == 1:
+        return stop
+    cdef int mid = <int>((stop - start) / 2) + start
+    if x == _seq[mid]:
+        return mid
+    elif x < _seq[mid]:
+        return _supidx(x,_seq,start,mid)
+    else:
+        return _supidx(x,_seq,mid,stop)
+
+def supidx(x,seq,start,stop):
+    return _supidx(x,np.asarray(seq, dtype=DTYPE),start,stop)
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.profile(False)
-cdef inline int _randwpmf(object pmfarr, object prng=np.random) except? -1:
+cdef inline object _randwpmf(object pmfarr, int num, object prng):
     '''
-    Scalar function. For more details, see doctype of _randwpmf.randwpmf
+    See doctype of _randwpmf.randwpmf
     '''
+    if num < 0:
+        raise ValueError('invalid number of elements: %s' % num)
     cdef:
-        cnp.ndarray[DTYPE_t, ndim=1] pmf = pmfarr
-        int n = <int> len(pmf)
+        cnp.ndarray[DTYPE_t, ndim=1] pmf = np.asarray(pmfarr, dtype=DTYPE)
+        int i, n = len(pmf)
         cnp.ndarray[DTYPE_t, ndim=1] cdf = np.empty([ n ], dtype=DTYPE)
         DTYPE_t norm_sum = 0.0
-        DTYPE_t u = prng.random_sample()
-        int i
+        cnp.ndarray[DTYPE_t, ndim=1] u = prng.random_sample(num)
     norm_sum = 0.
-    for i in xrange(len(pmf)):
+    for i in xrange(n):
         norm_sum += pmf[i]
     if norm_sum <= 0.:
         raise ValueError('argument is not a valid probability mass function')
-    for i in range(n):
+    for i in xrange(n):
         cdf[i] = pmf[i] / norm_sum
-    for i in range(n):
         if i > 0:
-            cdf[i] = cdf[i-1] + ( pmf[i] / norm_sum )
-        if cdf[i] >= u:
-            return i
+            cdf[i] = cdf[i-1] + cdf[i]
+    res = deque()
+    for j in xrange(len(u)):
+        res.append(_supidx(u[j], cdf, 0, n))
+    return np.asarray(res)
 
-cpdef randwpmf(pmf, size=None, prng=np.random):
+cpdef object randwpmf(object pmf, int num=1, object prng=np.random):
     '''
     samples an array of random integers with prescribed probability mass
     function 'pmf'. The size of the array is given, else a random scalar is
@@ -43,15 +70,8 @@ cpdef randwpmf(pmf, size=None, prng=np.random):
 
     Parameters
     ----------
-    pmf     - a numpy array
-    size    - size of output array (optional)
+    pmf     - a sequence of probability masses (e.g. bin frequencies)
+    num     - number of random variates (1 returns a scalar, otherwise an array)
     prng    - numpy.random.RandomState object (default = numpy.random)
     '''
-    pmf = np.asarray(pmf, dtype=DTYPE)
-    if size is not None:
-        numel = np.prod(size)
-        x = np.asarray([ _randwpmf(pmf,prng) for i in xrange(numel) ])
-        return x.reshape(size)
-    else:
-        return _randwpmf(pmf, prng)
-
+    return _randwpmf(pmf, num, prng)

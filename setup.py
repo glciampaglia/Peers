@@ -11,7 +11,7 @@ ext_rand = Extension("rand",
 
 ext_cpeers = Extension("_cpeers",
         [ "cpeers.pyx" ],
-        include_dirs=[ numpy_include, '.' ])
+        include_dirs=[ numpy_include, '.'])
 
 #import numpy as np
 #from os.path import dirname, join
