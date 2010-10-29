@@ -91,9 +91,10 @@ cdef interaction(object args, object prng, object users, object pages, object pa
                 elif prng.rand() < rollback_prob:
                     p.opinion += speed * ( u.opinion - p.opinion )
             print args.time, u.id, p.id
-            args.noedits += 1
+        args.noedits += 1
         users[i] = u
         pages[j] = p
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef object selection(object args, object prng, object users, object pages):
@@ -133,16 +134,9 @@ cdef update(object args, object prng, object users, object pages):
             del users[idx]
             removed += 1
     users.extend([ User(args, prng, args.const_succ, args.const_succ, None,
-        args.p_max) for i in 
-            xrange(prng.poisson(args.user_input_rate)) ])
+            args.p_max) for i in xrange(prng.poisson(args.user_input_rate)) ])
     pages.extend([ Page(args, prng, args.const_pop, -1) for i in
             xrange(prng.poisson(args.page_input_rate)) ])
-    if args.info_file:
-        info = {}
-        info['time'] = args.time
-        info['users'] = len(users)
-        info['pages'] = len(pages)
-        args.info_file.write('%(time)s %(users)s %(pages)s\n' % info)
 
 cdef step_forward(args, prng, users, pages, transient):
     cdef double dt = args.time_step
@@ -155,22 +149,34 @@ cdef step_forward(args, prng, users, pages, transient):
         pairs = selection(args, prng, users, pages)
         interaction(args, prng, users, pages, pairs, 1-transient)
         update(args, prng, users, pages)
+        if args.info_file and args.info_binary:
+            args.info_array[args.elapsed_steps] = (args.time, len(users),
+                    len(pages))
+        elif args.info_file:
+            info = {}
+            info['time'] = args.time
+            info['users'] = len(users)
+            info['pages'] = len(pages)
+            args.info_file.write('%(time)s %(users)s %(pages)s\n' % info)
         args.time += args.time_step
+        args.elapsed_steps += 1
 
 cpdef simulate(args):
     prng = np.random.RandomState(args.seed)
     users = [ User(args, prng, args.const_succ, args.const_succ, prng.rand(),
-        args.p_max) 
-            for i in xrange(args.num_users) ]
+            args.p_max) for i in xrange(args.num_users) ]
     pages = [ Page(args, prng, args.const_pop, -1) for i in 
             xrange(args.num_pages) ] 
     args.time = 0.0
+    start_time = time()
+    args.elapsed_steps = 0
+    args.noedits = 0
     try:
-        start_time = time()
         step_forward(args, prng, users, pages, 1) # don't output anything
-        args.noedits = 0
         step_forward(args, prng, users, pages, 0) # actual simulation output
     finally:
-        speed = args.noedits / (time() - start_time) 
-        print >> sys.stderr, " *** Speed: %g (interactions/sec)" % speed
+        speed = args.elapsed_steps / ( time() - start_time )
+        activity = args.noedits / (args.elapsed_steps * args.time_step )
+        print >> sys.stderr, " *** Speed: %g (steps/sec)" % speed
+        print >> sys.stderr, " *** Activity: %g (edits/simulated day)" % activity
     return prng, users, pages

@@ -7,7 +7,7 @@
 ''' Pure Python version '''
 
 from __future__ import division
-from argparse import ArgumentParser, FileType
+from argparse import ArgumentParser, FileType, Action
 import numpy as np
 from collections import deque
 import sys
@@ -29,14 +29,18 @@ class User(object):
             'edits',        # \ge 0, number of edits performed
             'successes',    # \ge 0 and \le edits, number of successful edits
             'p_activ',      # \le p_max, probability of activation in dt
+            'id',           # User id
     ]
+    USER_ID_MAX = 0
     def __init__(self, args, prng, edits, successes, opinion=None, p_activ=None):
         self.edits = edits
         self.successes = successes
         self.opinion = opinion or prng.rand()               # ~ U[0,1]
         self.p_activ = p_activ or prng.rand() * args.p_max  # ~ U[0,p_max]
+        self.id = User.USER_ID_MAX
+        User.USER_ID_MAX += 1
     @property
-    def p_leave(self):
+    def ratio(self):
         den = self.edits
         num = self.successes
         assert num <= den, "user will never stop"
@@ -49,10 +53,14 @@ class Page(object):
     __slots__ = [
             'opinion',  # see User
             'edits',    # see User
+            'id',       # see User
     ]
+    PAGE_ID_MAX = 0
     def __init__(self, args, prng, edits, opinion=None):
         self.opinion = opinion
         self.edits = edits
+        self.id = Page.PAGE_ID_MAX
+        Page.PAGE_ID_MAX += 1
 
 def interaction(args, prng, users, pages, pairs, update_opinions=True):
     for i, j in pairs:
@@ -72,8 +80,8 @@ def interaction(args, prng, users, pages, pairs, update_opinions=True):
                     p.opinion += args.speed * ( u.opinion - p.opinion )
                 elif prng.rand() < args.rollback_prob:
                     p.opinion += args.speed * ( u.opinion - p.opinion )
-            print args.time, i, j
-            args.noedits += 1
+            print args.time, u.id, p.id
+        args.noedits += 1
         users[i] = u
         pages[j] = p
 
@@ -106,19 +114,13 @@ def update(args, prng, users, pages):
     removed = 0
     for i in xrange(len(users)):
         idx = i - removed # deleting shrink the list so need to update idx
-        if rvs[i] <= args.p_stop * users[idx].p_leave ** args.stop_exp:
+        if rvs[i] <= 1 + users[idx].ratio * (args.p_stop - 1):
             del users[idx]
             removed += 1
-    users.extend([ User(args, prng, args.const_succ, args.const_succ) for i in 
-            xrange(prng.poisson(args.user_input_rate)) ])
+    users.extend([ User(args, prng, args.const_succ, args.const_succ, None,
+            args.p_max) for i in xrange(prng.poisson(args.user_input_rate)) ])
     pages.extend([ Page(args, prng, args.const_pop) for i in
             xrange(prng.poisson(args.page_input_rate)) ])
-    if args.info_file:
-        info = {}
-        info['time'] = args.time
-        info['users'] = len(users)
-        info['pages'] = len(pages)
-        args.info_file.write('%(time)s %(users)s %(pages)s\n' % info)
 
 def step_forward(args, prng, users, pages, transient):
     dt = args.time_step
@@ -130,25 +132,61 @@ def step_forward(args, prng, users, pages, transient):
         pairs = selection(args, prng, users, pages)
         interaction(args, prng, users, pages, pairs, update_opinions=1-transient)
         update(args, prng, users, pages)
+        if args.info_file and args.info_binary:
+            args.info_array[args.elapsed_steps] = (args.time, len(users),
+                    len(pages))
+        elif args.info_file:
+            info = {}
+            info['time'] = args.time
+            info['users'] = len(users)
+            info['pages'] = len(pages)
+            args.info_file.write('%(time)s %(users)s %(pages)s\n' % info)
         args.time += args.time_step
+        args.elapsed_steps += 1
+
+def binary_file(args):
+    ''' 
+    returns a memory mapped array to an NPY (v1.0) file
+    '''
+    from numpy.lib.io import format
+    from cStringIO import StringIO
+    dty = 'f8, i4, i4'
+    shp = (args.num_steps + args.num_transient_steps,)
+    header = { 
+        'descr' : dty, 
+        'fortran_order' : False, 
+        'shape' : shp
+        }
+    preamble = '\x93NUMPY\x01\x00'
+    args.info_file.write(preamble)
+    cio = StringIO()
+    format.write_array_header_1_0(cio, header) # write header here first
+    format.write_array_header_1_0(args.info_file, header) # write header
+    cio.seek(0) 
+    offset = len(preamble) + len(cio.readline()) # get offset 
+    return np.memmap(args.info_file, dtype=dty, mode='w+', shape=shp,
+            offset=offset)
 
 def simulate(args):
     prng = np.random.RandomState(args.seed)
     user_op = prng.rand(args.num_users)
     page_op = prng.rand(args.num_pages)
-    users = [ User(args, prng, args.const_succ, args.const_succ, user_op[i]) 
-            for i in xrange(args.num_users) ]
+    users = [ User(args, prng, args.const_succ, args.const_succ, user_op[i],
+            args.p_max) for i in xrange(args.num_users) ]
     pages = [ Page(args, prng, args.const_pop, page_op[i]) for i in 
             xrange(args.num_pages) ] 
     args.time = 0.0
+    start_time = time()
+    args.elapsed_steps = 0
+    args.noedits = 0
     try:
-        start_time = time()
         step_forward(args, prng, users, pages, 1) # don't output anything
-        args.noedits = 0
         step_forward(args, prng, users, pages, 0) # actual simulation output
     finally:
-        speed = args.noedits / (time() - start_time) 
-        print >> sys.stderr, " *** Speed: %g (interactions/sec)" % speed
+        speed = args.elapsed_steps / ( time() - start_time )
+        activity = args.noedits / (args.elapsed_steps * args.time_step )
+        print >> sys.stderr, " *** Speed: %g (steps/sec)" % speed
+        print >> sys.stderr, " *** Activity: %g (edits/simulated day)" % activity
     return prng, users, pages
 
 desc = 'The `Peers\' agent-based model © (2010) G.L. Ciampaglia'
@@ -164,8 +202,10 @@ def make_parser():
             help='seed of the pseudo-random numbers generator', metavar='seed')
     #
     # optional arguments
-    parser.add_argument('-i', '--info_file', type=FileType('w'), default=False,
+    parser.add_argument('-i', '--info-file', type=FileType('w+'), default=False,
             help='write simulation info to file', metavar='file')
+    parser.add_argument('--info-binary', action='store_true', default=False,
+            help='write binary data to info file (NumPy format)')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
             help='do not simulate, just print parameters defaults')
     parser.add_argument('-D','--debug', action='store_true', default=False, 
@@ -208,7 +248,7 @@ def print_arguments(args): # print useful info like how many steps to do, etc.
     for k,v in args._get_kwargs():
         print >> sys.stderr, '%s: %s' % (k.upper().replace('_',' '), str(v))
     print >> sys.stderr, 'TOTAL TIME: %9.10g days' % (args.time_step *
-            args.num_steps)
+            ( args.num_transient_steps + args.num_steps))
     print >> sys.stderr, 'AVG BASELINE LIFETIME: %g days' % ( args.time_step *
             args.p_stop ** -1)
  
@@ -266,6 +306,8 @@ def check_arguments(args):
         warn('always rollback interactions', category=UserWarning)
     if args.speed == 0:
         warn('null opinion update', category=UserWarning)
+    if args.info_binary:
+        args.info_array = binary_file(args)
 
 __all__ = [
         'make_parser',
