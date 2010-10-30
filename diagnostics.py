@@ -1,8 +1,10 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, FileType
 
+# TODO <ven 29 ott 2010, 11.34.15, CEST> use scikits
 import numpy as np
 import matplotlib.pyplot as pp
 from collections import deque
+import sys
 
 def moving(x, window):
     if window <= 0:
@@ -16,24 +18,32 @@ def moving(x, window):
             tmp.popleft()
     return ma
 
+def plot_data(args):
+    for i,data_file in enumerate(args.input_file):
+        print 'processing %s...' % data_file.name,
+        sys.stdout.flush()
+        data = np.loadtxt(data_file)
+        t, users, pages = data.T
+        if args.window: 
+            users = moving(users, args.window)
+            pages = moving(pages, args.window)
+        if args.users:
+            pp.plot(t, users, label='users #%d' % i, hold=1)
+        elif args.pages:
+            pp.plot(t, pages, label='pages #%d' %i, hold=1)
+        else:
+            l,ll = pp.plot(t, users, t, pages)
+            l.set_label('users #%d' % i)
+            ll.set_label('pages #%d' % i)
+        print ' done'
+        sys.stdout.flush()
+
 def main(args):
-    data = np.loadtxt(args.input_file)
-    t, users, pages = data.T
-    if args.window: 
-        users = moving(users, args.window)
-        pages = moving(pages, args.window)
     if args.pages and args.users:
         print 'Conflicting arguments. You cannot use both -u/--users and -p/--pages'
         import sys
         sys.exit(-2)
-    if args.users:
-        pp.plot(t, users, label='users')
-    elif args.pages:
-        pp.plot(t, pages, label='pages')
-    else:
-        l,ll = pp.plot(t, users, t, pages)
-        l.set_label('users')
-        ll.set_label('pages')
+    plot_data(args)
     pp.legend(loc=7)
     pp.xlabel('time (days)')
     if args.window:
@@ -43,7 +53,8 @@ def main(args):
 
 def make_parser():
     parser = ArgumentParser()
-    parser.add_argument('input_file', metavar='input', help='input file')
+    parser.add_argument('input_file', metavar='input', help='input file',
+            nargs='+', type=FileType('r'))
     parser.add_argument('-w','--window', type=int, metavar='length',
             help='plot moving average with given window length')
     parser.add_argument('-p', '--pages', action='store_true', default=False,

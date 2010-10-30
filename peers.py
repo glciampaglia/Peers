@@ -7,7 +7,7 @@
 ''' Pure Python version '''
 
 from __future__ import division
-from argparse import ArgumentParser, FileType, Action
+from argparse import ArgumentParser, FileType, Action, SUPPRESS
 import numpy as np
 from collections import deque
 import sys
@@ -144,28 +144,32 @@ def step_forward(args, prng, users, pages, transient):
         args.time += args.time_step
         args.elapsed_steps += 1
 
-def binary_file(args):
+def arrayfile(data_file, shape, descr, fortran=False):
     ''' 
-    returns a memory mapped array to an NPY (v1.0) file
+    returns an array that is memory mapped to an NPY (v1.0) file
+
+    Arguments
+    ---------
+    data_file - a file-like object opened with write mode
+    shape - shape of the ndarray
+    descr - any argument that numpy.dtype() can take
+    fortran - if True, the array uses Fortran data order, otherwise C order
     '''
     from numpy.lib.io import format
     from cStringIO import StringIO
-    dty = 'f8, i4, i4'
-    shp = (args.num_steps + args.num_transient_steps,)
     header = { 
-        'descr' : dty, 
-        'fortran_order' : False, 
-        'shape' : shp
+        'descr' : descr, 
+        'fortran_order' : fortran, 
+        'shape' : shape
         }
     preamble = '\x93NUMPY\x01\x00'
-    args.info_file.write(preamble)
+    data_file.write(preamble)
     cio = StringIO()
     format.write_array_header_1_0(cio, header) # write header here first
-    format.write_array_header_1_0(args.info_file, header) # write header
+    format.write_array_header_1_0(data_file, header) # write header
     cio.seek(0) 
     offset = len(preamble) + len(cio.readline()) # get offset 
-    return np.memmap(args.info_file, dtype=dty, mode='w+', shape=shp,
-            offset=offset)
+    return np.memmap(data_file, dtype=dty, mode='w+', shape=shape, offset=offset)
 
 def simulate(args):
     prng = np.random.RandomState(args.seed)
@@ -190,10 +194,11 @@ def simulate(args):
     return prng, users, pages
 
 desc = 'The `Peers\' agent-based model © (2010) G.L. Ciampaglia'
-usage = '%(prog)s [OPTIONS] duration [seed]'
+usage = '%(prog)s [OPTIONS, @file] duration [seed]'
 
 def make_parser(): 
-    parser = ArgumentParser(description=desc, usage=usage)
+    parser = ArgumentParser(description=desc, usage=usage,
+            fromfile_prefix_chars='@')
     #
     # positional arguments
     parser.add_argument('num_steps', type=int, 
@@ -202,10 +207,12 @@ def make_parser():
             help='seed of the pseudo-random numbers generator', metavar='seed')
     #
     # optional arguments
-    parser.add_argument('-i', '--info-file', type=FileType('w+'), default=False,
+    parser.add_argument('-i', '--info-file', type=FileType('w+'),
             help='write simulation info to file', metavar='file')
     parser.add_argument('--info-binary', action='store_true', default=False,
             help='write binary data to info file (NumPy format)')
+    parser.add_argument('info_dty_descr', default='f8, i4, i4,', help=SUPPRESS,
+            nargs='?')
     parser.add_argument('-d', '--dry-run', action='store_true', default=False,
             help='do not simulate, just print parameters defaults')
     parser.add_argument('-D','--debug', action='store_true', default=False, 
@@ -214,6 +221,8 @@ def make_parser():
             help='run profiling')
     parser.add_argument('--profile-file', metavar='file', default=None,
             help="store profiling information in file")
+    #
+    # model parameters
     parser.add_argument('-u', '--num-users', type=int, default=0,
             help='initial number of users', metavar='value')
     parser.add_argument('-p', '--num-pages', type=int, default=0,
@@ -223,7 +232,7 @@ def make_parser():
     parser.add_argument('-P', '--page-input-rate', metavar='rate', type=np.double,
             default=1.0, help='rate of new pages per unit of time Δt')
     parser.add_argument('-t', '--time-step', type=np.double, default=1/8640, 
-            metavar='value', help='Δt update step' )
+            metavar='value', help='Δt update step (days)' )
     parser.add_argument('-c', '--confidence', metavar='value',
             type=np.double, default=.2, help='confidence parameter')
     parser.add_argument('-s','--speed', metavar='value', type=np.double,
@@ -307,7 +316,8 @@ def check_arguments(args):
     if args.speed == 0:
         warn('null opinion update', category=UserWarning)
     if args.info_binary:
-        args.info_array = binary_file(args)
+        shape = (args.num_steps + args.num_transient_steps,)
+        args.info_array = arrayfile(args.info_file, shape, args.info_dty_descr)
 
 __all__ = [
         'make_parser',

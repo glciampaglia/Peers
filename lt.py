@@ -21,7 +21,7 @@ def main(args):
     return lt
 
 def make_parser():
-    parser = ArgumentParser()
+    parser = ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument('output_file', type=FileType('w'), help='output file', 
             metavar='output')
     parser.add_argument('-l','--lifetime', action='store_true',
@@ -32,7 +32,7 @@ def make_parser():
 
 def check_arguments(args):
     if args.min_edits < 0:
-        raise ValueError('invalid value for min_edits (-m/--mind-edits)')
+        raise ValueError('invalid value for min_edits (-m/--min-edits)')
 
 if __name__ == '__main__':
     parser = make_parser()
