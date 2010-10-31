@@ -8,7 +8,7 @@ python jobs.py 'python cpeers.py' -p 'python lt.py' -s defaults\
 
 if [ "$?" = 0 ];
 then
-    zip $file.npz $file-*.npy $file_index.npy && rm -f $file-*npy $file_index.npy
+    zip $file.npz $file-*.npy "$file"_index.npy && rm -f $file-*.npy "$file"_index.npy
 else
     echo 'failed'
 fi
