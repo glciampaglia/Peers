@@ -10,7 +10,7 @@ command lines that are executed in workers
 # vim:ts=8:sw=4:sts=4
 
 import sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, FileType
 from warnings import catch_warnings, simplefilter
 with catch_warnings():
     simplefilter('ignore', DeprecationWarning)
@@ -33,16 +33,23 @@ def execpipe(cmd):
         prev_proc = p
     return p.communicate()
 
+desc = 'Reads a sequence of jobs from stdin and executes them on a cluster.'
+
 def make_parser():
-    parser = ArgumentParser()
+    parser = ArgumentParser(description=desc)
     parser.add_argument('-t', '--taskclient', action='store_true',
             help='Turn load-balancing and fault-tolerance on ', default=False)
     parser.add_argument('-v', '--verbose', action='store_true',
             help='Print list of commands', default=False)
+    parser.add_argument('-f', '--from-file', dest='input_file',  metavar='file',
+            type=FileType('r'), help='reads jobs list from file',
+            default=sys.stdin)
+    parser.add_argument('-D', '--debug', action='store_true', default=False,
+            help='raise Python exceptions to the console')
     return parser
 
 def main(args):
-    lines = ( l.strip() for l in iter(sys.stdin.readline, '') )
+    lines = ( l.strip() for l in iter(args.input_file.readline, '') )
     cmds = filter(lambda k : len(k), lines)
     if args.verbose:
         for i,c in enumerate(cmds):
@@ -61,4 +68,15 @@ def main(args):
 if __name__ == '__main__':
     parser = make_parser()
     ns = parser.parse_args()
-    main(ns)
+    try:
+        main(ns)
+    except:
+        ty,val,tb = sys.exc_info()
+        if ns.debug:
+            raise ty, val, tb
+        else:
+            name = ty.__name__
+            print >> sys.stderr, '\n%s: %s\n' % (name, val)
+    finally:
+        if ns.input_file is not sys.stdin:
+            ns.input_file.close()
