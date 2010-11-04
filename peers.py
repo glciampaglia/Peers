@@ -170,7 +170,8 @@ def arrayfile(data_file, shape, descr, fortran=False):
     format.write_array_header_1_0(data_file, header) # write header
     cio.seek(0) 
     offset = len(preamble) + len(cio.readline()) # get offset 
-    return np.memmap(data_file, dtype=dty, mode='w+', shape=shape, offset=offset)
+    return np.memmap(data_file, dtype=np.dtype(descr), mode='w+', shape=shape,
+            offset=offset)
 
 def simulate(args):
     prng = np.random.RandomState(args.seed)
@@ -264,7 +265,7 @@ def print_arguments(args): # print useful info like how many steps to do, etc.
             ( args.num_transient_steps + args.num_steps))
     print >> sys.stderr, 'AVG BASELINE LIFETIME: %s' % si_str( args.time_step *
             args.p_stop ** -1)
- 
+
 def check_arguments(args):
     if args.seed is not None and args.seed < 0:
         raise ValueError('seed cannot be negative (-s)')
