@@ -14,6 +14,7 @@ import sys
 from time import time
 
 from rand import randwpmf
+from timeutils import si_str
 
 # custom warning formatting
 formatwarning = lambda msg,cat,fn,lno,l: '*** WARNING *** ' + msg.args[0] + '\n'
@@ -255,10 +256,13 @@ def make_parser():
 
 def print_arguments(args): # print useful info like how many steps to do, etc.
     for k,v in args._get_kwargs():
-        print >> sys.stderr, '%s: %s' % (k.upper().replace('_',' '), str(v))
-    print >> sys.stderr, 'TOTAL TIME: %9.10g days' % (args.time_step *
+        if k == 'time_step':
+            print >> sys.stderr, 'TIME STEP: '+ si_str(v)
+        else:
+            print >> sys.stderr, '%s: %s' % (k.upper().replace('_',' '), str(v))
+    print >> sys.stderr, 'TOTAL TIME: %s' % si_str(args.time_step *
             ( args.num_transient_steps + args.num_steps))
-    print >> sys.stderr, 'AVG BASELINE LIFETIME: %g days' % ( args.time_step *
+    print >> sys.stderr, 'AVG BASELINE LIFETIME: %s' % si_str( args.time_step *
             args.p_stop ** -1)
  
 def check_arguments(args):

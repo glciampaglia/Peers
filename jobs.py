@@ -47,6 +47,11 @@ def lhd(args):
         d,design = _lhd(m, args.size, ranges=args.ranges, prng=prng)
     return design
 
+def repeat_flat(sequence, num=1):
+    for elem in sequence:
+        for i in xrange(num):
+            yield elem
+
 def iterjobs(args, design):
     cmdline = makecmdline(args)
     for i, point in enumerate(design):
@@ -74,6 +79,9 @@ def make_parser():
     parser.add_argument('-S', '--post-defaults', action='append', default=[])
     parser.add_argument('-o','--output-template', default='output',
             help='template for output files')
+    parser.add_argument('-R', '--realizations', default=1, type=int,
+            metavar='num',
+            help='Produce %(metavar)s realizations for each vector of parameters')
     subparsers = parser.add_subparsers()
 # LHD parser
     parser_lhd = subparsers.add_parser('lhd', help='Latin hypercube design')
@@ -97,10 +105,20 @@ def check_arguments(args):
 
 def main(args):
     design = args.design_func(args)
+    design = list(repeat_flat(design, args.realizations))
+    design = sorted(map(tuple, design)) 
+    design = np.asarray(design)
     for job in iterjobs(args, design):
         print job
     dty = np.dtype(zip(args.dimensions, [ np.double ]*len(args.dimensions)))
-    np.save(args.output_template + '_index.npy', design.view(dty))
+    np.save(args.output_template + '_index.npy', design.view(dty).flatten())
+    try:
+        f = open(args.script_defaults)
+        defs = [ l.strip() for l in f.readlines() ]
+    finally:
+        f.close()
+    defs = np.asarray(zip(defs[::2], defs[1::2]), dtype='S10, f8')
+    np.save(args.output_template + '_defaults.npy', defs)
 
 if __name__ == '__main__':
     parser = make_parser()

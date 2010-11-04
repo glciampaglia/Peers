@@ -9,12 +9,13 @@ command lines that are executed in workers
 # file: jobs.py
 # vim:ts=8:sw=4:sts=4
 
+import os
 import sys
 from argparse import ArgumentParser, FileType
 from warnings import catch_warnings, simplefilter
 with catch_warnings():
     simplefilter('ignore', DeprecationWarning)
-    from IPython.kernel.client import MultiEngineClient, TaskClient
+    from IPython.kernel.client import MultiEngineClient, TaskClient, CompositeError
 
 def execpipe(cmd):
     '''
@@ -31,7 +32,12 @@ def execpipe(cmd):
             p = sp.Popen(c.split(), stdout=sp.PIPE)
         procs.append(p)
         prev_proc = p
-    return p.communicate()
+    try:
+        return p.communicate()
+    finally:
+        if p.returncode != 0:
+            raise RuntimeError('process %d failed with return code %d' %
+                    (p.pid, p.returncode), cmd)
 
 desc = 'Reads a sequence of jobs from stdin and executes them on a cluster.'
 
@@ -46,7 +52,13 @@ def make_parser():
             default=sys.stdin)
     parser.add_argument('-D', '--debug', action='store_true', default=False,
             help='raise Python exceptions to the console')
+    parser.add_argument('-w','--cwd', metavar='dir', default=os.getcwd(),
+            help='set current working directory of engines to dir')
     return parser
+
+def _setwd(args,client):
+    client.execute('import os')
+    client.execute('os.chdir(%s)' % repr(args.cwd))
 
 def main(args):
     lines = ( l.strip() for l in iter(args.input_file.readline, '') )
@@ -54,22 +66,27 @@ def main(args):
     if args.verbose:
         for i,c in enumerate(cmds):
             print '%d) "%s"' % (i,c)
-    if args.taskclient:
-        with catch_warnings():
-            simplefilter('ignore', DeprecationWarning)
-            tc = TaskClient()
-        tc.map(execpipe, cmds)
-    else:
-        with catch_warnings():
-            simplefilter('ignore', DeprecationWarning)
-            mec = MultiEngineClient()
-        mec.map(execpipe, cmds)
+    try:
+        if args.taskclient:
+            with catch_warnings():
+                simplefilter('ignore', DeprecationWarning)
+                tc = TaskClient()
+            _setwd(args, tc)
+            return tc.map(execpipe, cmds)
+        else:
+            with catch_warnings():
+                simplefilter('ignore', DeprecationWarning)
+                mec = MultiEngineClient()
+            _setwd(args,mec)
+            return mec.map(execpipe, cmds)
+    except CompositeError,e:
+        e.print_tracebacks()
 
 if __name__ == '__main__':
     parser = make_parser()
     ns = parser.parse_args()
     try:
-        main(ns)
+        ret = main(ns)
     except:
         ty,val,tb = sys.exc_info()
         if ns.debug:
