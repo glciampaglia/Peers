@@ -3,7 +3,7 @@
 import sys
 import numpy as np
 from lhd import lhd as _lhd
-from argparse import ArgumentParser, FileType, Action
+from argparse import ArgumentParser, FileType
 
 descr='Generates Jobs'
 

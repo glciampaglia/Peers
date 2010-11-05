@@ -7,7 +7,7 @@
 ''' Pure Python version '''
 
 from __future__ import division
-from argparse import ArgumentParser, FileType, Action, SUPPRESS
+from argparse import ArgumentParser, FileType, SUPPRESS
 import numpy as np
 from collections import deque
 import sys
