@@ -65,7 +65,7 @@ def grid(args):
     return np.c_[map(np.ravel,design)].T
 
 def make_parser():
-    parser = ArgumentParser(description=descr)
+    parser = ArgumentParser(description=descr, fromfile_prefix_chars='@')
     parser.add_argument('script', help='simulation script')
     parser.add_argument('-D', '--debug', action='store_true', 
             help='Raise Python exceptions to the console')
