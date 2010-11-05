@@ -45,7 +45,7 @@ echo '**************************************************************************
 
 # launch the simulations
 python $bindir/jobs.py "python $bindir/cpeers.py" -p "python $bindir/lt.py" \
-    -o $file @$conf | python $bindir/cluster.py -v -w `pwd`
+    -o $file -R $num @$conf | python $bindir/cluster.py -v -w `pwd`
 
 # test exit status
 eval=$?
