@@ -46,6 +46,8 @@ def plotcmd(args):
     if args.output:
         for fmt in args.formats:
             pp.savefig(args.output+'.'+fmt)
+    if args.save:
+        np.save(args.save, data)
     pp.show()
     return data
 
@@ -121,13 +123,8 @@ def check_parser(args, parser):
     args.index = args.input[args.name+'_index']
     args.defaults = args.input[args.name+'_defaults']
 
-def main(args):
-    ret = args.func(args)
-    if args.save:
-        np.save(args.save, ret)
-
 if __name__ == '__main__':
     parser = make_parser()
     ns = parser.parse_args()
     check_parser(ns, parser)
-    main(ns)
+    result = ns.func(ns)
