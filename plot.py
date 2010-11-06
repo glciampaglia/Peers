@@ -8,6 +8,14 @@ import matplotlib.pyplot as pp
 from argparse import ArgumentParser, FileType, Action
 from itertools import groupby
 
+from matplotlib.lines import lineMarkers as markers
+markers = filter(lambda k : isinstance(k, str), markers.keys())
+markers.remove('None')
+markers.remove(' ')
+markers.remove('')
+markers[2] = 'o'
+markers[3] = 'v'
+
 def _figure(args):
     fig = pp.figure(figsize=args.figsize)
     ax = fig.add_subplot(111)
@@ -19,35 +27,68 @@ def _figure(args):
         ax.set_ylabel(args.ylabel, fontsize=args.font_size)
     return (ax,fig)
 
-def _mpl_kwargs(args):
-    return dict(c=args.color, ls=args.line_style, marker=args.marker,
-            ms=args.marker_size)
+def _mpl_kwargs(args, **kwargs):
+    kw = dict(ls=args.line_style, ms=args.marker_size)
+    kw.update(kwargs)
+    return kw
 
 def _dataiter(args):
     for i in xrange(len(args.input.files)-2):
         yield args.input[args.name+'-%d' % i]
 
+def _adderrorbar(data, **kwargs):
+    gdata = []
+    itemgetter = lambda k : k[0]
+    for k, subiter in groupby(data, itemgetter):
+        subdata = list((d for k,d in subiter))
+        n = len(subdata)
+        gdata.append((k, np.mean(subdata), np.std(subdata)/np.sqrt(n)))
+    gdata = np.asarray(gdata)
+    ax = pp.gca()
+    ax.errorbar(gdata[:,0], gdata[:,1], gdata[:,2]/2., **kwargs)
+
+def _addplot(data, **kwargs):
+    ax = pp.gca()
+    l, = ax.plot(data[:,0], data[:,1], **kwargs)
+
+def _spliton0(seq):
+    itemgetter = lambda k : k[0]
+    for k, subiter in groupby( seq, itemgetter ):
+        yield np.asarray([ d[1:] for d in subiter ])
+
 def plotcmd(args):
     ''' plot the mean of data, optionally grouping by the same x-value '''
-    data = np.asarray( zip(args.index[args.dimension],
-            [ np.mean(d) for d in _dataiter(args)]) )
-    ax, fig = _figure(args)
-    if args.grouped:
-        gdata = []
-        for k, subiter in groupby(data, lambda k : k[0]):
-            subdata = list((d for k,d in subiter))
-            n = len(subdata)
-            gdata.append((k, np.mean(subdata), np.std(subdata)/np.sqrt(n)))
-        data = np.asarray(gdata)
-        ax.errorbar(data[:,0], data[:,1], data[:,2]/2., **_mpl_kwargs(args))
+    if args.add_dimension is not None:
+        keydata = args.index[args.add_dimension]
+        if args.legend:
+            name = args.legend
+        else:
+            name = args.add_dimension
+        labels = [ '$%s = %g$' % ( name, k ) for k in sorted(set(keydata)) ]
+        xdata = args.index[args.dimension]
+        ydata = [ np.mean(d) for d in _dataiter(args)]
+        data = zip(keydata, xdata, ydata) 
+        data = list(_spliton0(sorted(data)))
     else:
-        l, = ax.plot(data[:,0], data[:,1], **_mpl_kwargs(args))
+        data = [ np.asarray( zip(args.index[args.dimension],
+                [ np.mean(d) for d in _dataiter(args)]) ) ]
+        labels = [ None ]
+    ax, fig = _figure(args)
+    for d,m,c,l in zip(data, args.marker, args.color, labels):
+        if args.grouped:
+           _adderrorbar(d, **_mpl_kwargs(args, marker=m, c=c, label=l))
+        else:
+            _addplot(d, **_mpl_kwargs(args, marker=m, c=c, label=l))
+    pp.legend(loc=args.legend_location)
     pp.draw()
     if args.output:
         for fmt in args.formats:
             pp.savefig(args.output+'.'+fmt)
     if args.save:
-        np.save(args.save, data)
+        if len(data) > 1:
+            np.savez(args.save, *data)
+        else:
+            np.save(args.save, data)
     pp.show()
     return data
 
@@ -89,8 +130,8 @@ def make_parser():
             help='Plot data along one dimension of the parameter space')
     plot_mean_parser.add_argument('dimension', help='dimension name', 
         metavar='DIMENSION',)
-#    plot_mean_parser.add_argument('key_dimension', metavar='KEY DIM', nargs='?',
-#            help='will produce one plot per each value along %(metavar)s')
+    plot_mean_parser.add_argument('add_dimension', metavar='ADD. DIMENSION', 
+            nargs='?', help='will produce one plot per each value along %(metavar)s')
     plot_mean_parser.add_argument('-s', '--save', help='save plot data to file', 
             metavar='file', type=FileType('w'))
     plot_mean_parser.add_argument('-o', '--output', help='save plots to %(metavar)s.FMT',
@@ -104,7 +145,8 @@ def make_parser():
             action=MakeTuple, metavar='h w')
     plot_mean_parser.add_argument('--marker-size', default=8, type=int, metavar='size')
     plot_mean_parser.add_argument('--line-style', default=' ', metavar='style')
-    plot_mean_parser.add_argument('--marker', default='o', metavar='type')
+    plot_mean_parser.add_argument('--marker', default=markers, metavar='type',
+            nargs='+')
     plot_mean_parser.add_argument('--xlabel', metavar='text', 
             help='x axis label caption (escape TeX macros with \\\\)')
     plot_mean_parser.add_argument('--ylabel', metavar='text', 
@@ -113,8 +155,10 @@ def make_parser():
             help='see matplotlib.pyplot.legend\'s docstring')
     plot_mean_parser.add_argument('--font-size', default=18, type=int,
             metavar='size', help='font size')
-    plot_mean_parser.add_argument('--color', default='k', help='color',
+    plot_mean_parser.add_argument('--color', help='color (default: grayscale)',
             metavar='color')
+    plot_mean_parser.add_argument('--legend', metavar='string', 
+            help='legend string (TeX allowed)')
     return parser
 
 def check_parser(args, parser):
@@ -122,6 +166,14 @@ def check_parser(args, parser):
     args.name = ''.join(name)
     args.index = args.input[args.name+'_index']
     args.defaults = args.input[args.name+'_defaults']
+    if args.add_dimension is not None:
+        n = len(set(args.index[args.add_dimension]))
+        if args.color is None:
+            args.color = [ tuple([ float(i) / n ]*3) for i in xrange(n) ]
+        else:
+            args.color = args.color * n
+    elif args.color is None:
+        args.color = 'k'
 
 if __name__ == '__main__':
     parser = make_parser()
