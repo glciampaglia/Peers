@@ -166,14 +166,17 @@ def check_parser(args, parser):
     args.name = ''.join(name)
     args.index = args.input[args.name+'_index']
     args.defaults = args.input[args.name+'_defaults']
-    if args.add_dimension is not None:
-        n = len(set(args.index[args.add_dimension]))
-        if args.color is None:
-            args.color = [ tuple([ float(i) / n ]*3) for i in xrange(n) ]
-        else:
-            args.color = args.color * n
-    elif args.color is None:
-        args.color = 'k'
+    if args.func is plotcmd:
+        if args.add_dimension is not None:
+            n = len(set(args.index[args.add_dimension]))
+            if args.color is None:
+                args.color = [ tuple([ float(i) / n ]*3) for i in xrange(n) ]
+            else:
+                args.color = args.color * n
+        elif args.color is None:
+            args.color = 'k'
+    elif args.func is listcmd:
+        pass
 
 if __name__ == '__main__':
     parser = make_parser()
