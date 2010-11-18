@@ -16,13 +16,15 @@ markers.remove('')
 markers[2] = 'o'
 markers[3] = 'v'
 
+from io import load
+
 def _figure(args):
     fig = pp.figure(figsize=args.figsize)
     ax = fig.add_subplot(111)
     if args.xlabel:
         ax.set_xlabel(args.xlabel, fontsize=args.font_size)
     else:
-        ax.set_xlabel(args.name, fontsize=args.font_size)
+        ax.set_xlabel(args.input.name, fontsize=args.font_size)
     if args.ylabel:
         ax.set_ylabel(args.ylabel, fontsize=args.font_size)
     return (ax,fig)
@@ -31,10 +33,6 @@ def _mpl_kwargs(args, **kwargs):
     kw = dict(ls=args.line_style, ms=args.marker_size)
     kw.update(kwargs)
     return kw
-
-def _dataiter(args):
-    for i in xrange(len(args.input.files)-2):
-        yield args.input[args.name+'-%d' % i]
 
 def _adderrorbar(data, **kwargs):
     gdata = []
@@ -59,19 +57,19 @@ def _spliton0(seq):
 def plotcmd(args):
     ''' plot the mean of data, optionally grouping by the same x-value '''
     if args.add_dimension is not None:
-        keydata = args.index[args.add_dimension]
+        keydata = args.input.index[args.add_dimension]
         if args.legend:
             name = args.legend
         else:
             name = args.add_dimension
-        labels = [ '$%s = %g$' % ( name, k ) for k in sorted(set(keydata)) ]
-        xdata = args.index[args.dimension]
-        ydata = [ np.mean(d) for d in _dataiter(args)]
-        data = zip(keydata, xdata, ydata) 
+        labels = [ '$%s = %g$' % ( name, k ) for k in set(sorted(keydata)) ]
+        xdata = args.input.index[args.dimension]
+        ydata = [ np.mean(d) for d in iter(args.input)]
+        data = zip(keydata, xdata, ydata)
         data = list(_spliton0(sorted(data)))
     else:
-        data = [ np.asarray( zip(args.index[args.dimension],
-                [ np.mean(d) for d in _dataiter(args)]) ) ]
+        data = [ np.asarray( zip(args.input.index[args.dimension],
+                [ np.mean(d) for d in iter(args.input)]) ) ]
         labels = [ None ]
     ax, fig = _figure(args)
     for d,m,c,l in zip(data, args.marker, args.color, labels):
@@ -94,22 +92,22 @@ def plotcmd(args):
 
 def listcmd(args):
     ''' display information on data '''
-    set_index = set(map(tuple, args.index))
-    cmd = ' '.join(map(lambda k : ' '.join(map(str,k.item())), args.defaults))
-    print 'NAME: %s' % args.name
-    print 'TOTAL: %d simulations' % (len(args.input.files)-2)
-    print 'PARAMETERS: %s' % ', '.join(args.index.dtype.names)
-    print 'REALIZATIONS: %d per parameter ndpoint' % (len(args.index)/len(set_index))
+    cmd = ' '.join(map(lambda k : ' '.join(map(str,k.item())), args.input.defaults))
+    reps = len(args.input.index)/len(args.input.indexset)
+    print 'NAME: %s' % args.input.name
+    print 'TOTAL: %d simulations' % len(args.input)
+    print 'PARAMETERS: %s' % ', '.join(args.input.index.dtype.names)
+    print 'REALIZATIONS: %d per parameter ndpoint' % reps
     if args.print_index:
         print 'INDEX:'
-        for i,point in enumerate(set_index):
+        for i,point in enumerate(args.input.indexset):
             print '  (%d)\t' % i + repr(point)
     if args.print_defaults:
         print 'DEFAULTS: %s' % cmd
 
 class NumPyLoad(Action):
     def __call__(self, parser, ns, values, option_string=None):
-        setattr(ns, self.dest, np.load(values[0]))
+        setattr(ns, self.dest, load(values))
 
 class MakeTuple(Action):
     def __call__(self, parser, ns, values, option_string=None):
@@ -118,7 +116,7 @@ class MakeTuple(Action):
 def make_parser():
     parser = ArgumentParser()
     parser.add_argument('input', help='read data from file', action=NumPyLoad,
-            type=FileType('r'), nargs=1, metavar='INPUT')
+            type=FileType('r'), metavar='INPUT')
     subparsers = parser.add_subparsers()
 # list contents
     list_parser = subparsers.add_parser('list', help='List data file contents')
@@ -162,13 +160,13 @@ def make_parser():
     return parser
 
 def check_parser(args, parser):
-    name = args.input.files[0].split('-')[:-1]
-    args.name = ''.join(name)
-    args.index = args.input[args.name+'_index']
-    args.defaults = args.input[args.name+'_defaults']
+#    name = args.input.files[0].split('-')[:-1]
+#    args.name = ''.join(name)
+#    args.index = args.input[args.name+'_index']
+#    args.defaults = args.input[args.name+'_defaults']
     if args.func is plotcmd:
         if args.add_dimension is not None:
-            n = len(set(args.index[args.add_dimension]))
+            n = len(set(args.input.index[args.add_dimension]))
             if args.color is None:
                 args.color = [ tuple([ float(i) / n ]*3) for i in xrange(n) ]
             else:
