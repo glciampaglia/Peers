@@ -7,7 +7,6 @@ from collections import deque
 cimport numpy as cnp
 cimport cython
 
-
 DTYPE = np.float64
 ctypedef cnp.float64_t DTYPE_t
 
@@ -16,7 +15,8 @@ ctypedef cnp.float64_t DTYPE_t
 @cython.boundscheck(False)
 cdef inline int _supidx(float x, object seq, int start, int stop):
     ''' binary search: recursively find the index of sup{x} in seq (i.e. the
-    element on the right). The sequence *must* be ordered '''
+    element on the right). The sequence *must* be ordered. This is like
+    numpy.searchsorted with side='right'.'''
     cdef cnp.ndarray[cnp.float64_t, ndim=1] _seq = seq
     if x <= _seq[start]:
         return start
@@ -75,3 +75,39 @@ cpdef object randwpmf(object pmf, int num=1, object prng=np.random):
     prng    - numpy.random.RandomState object (default = numpy.random)
     '''
     return _randwpmf(pmf, num, prng)
+
+@cython.profile(False)
+cdef inline cnp.float64_t _ecdf(float x, object data):
+    ''' data *must* be a sorted array '''
+    cdef int n = len(data)
+    return _supidx(x, data, 0, n) / n
+
+@cython.wraparound(False)
+@cython.boundscheck(False)
+cpdef cnp.float64_t auc(object seqa, object seqb):
+    '''
+    computes the Area Under Curve between empirical distribution function of
+    datasets seqa and seqb
+    '''
+    seqas = np.asarray(sorted(seqa), dtype=np.float64)
+    seqbs = np.asarray(sorted(seqb), dtype=np.float64)
+    seq = np.hstack([seqa, seqb])
+    if len(seqas) == len(seqbs):
+        seq.sort(kind='mergesort')
+    else:
+        seq.sort()
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] _seq = seq
+    cdef cnp.float64_t area = 0.0, midpoint, xu, xl, yu, yl
+    cdef int i
+    for i in xrange(len(_seq)-1):
+        xl = _seq[i]
+        xu = _seq[i+1]
+        midpoint = (xu - xl) / 2.0
+        if _ecdf(midpoint, seqas) >= _ecdf(midpoint, seqbs):
+            yu = _ecdf(midpoint, seqas)
+            yl = _ecdf(midpoint, seqbs)
+        else:
+            yu = _ecdf(midpoint, seqbs)
+            yl = _ecdf(midpoint, seqas)
+        area += (xu - xl) * (yu - yl)
+    return area
