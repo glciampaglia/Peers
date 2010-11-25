@@ -3,63 +3,72 @@
 from __future__ import division
 import numpy as np
 from collections import deque
+from warnings import warn
 
 cimport numpy as cnp
 cimport cython
 
-DTYPE = np.float64
-ctypedef cnp.float64_t DTYPE_t
-
 @cython.profile(False)
 @cython.wraparound(False)
 @cython.boundscheck(False)
-cdef inline int _supidx(float x, object seq, int start, int stop):
-    ''' binary search: recursively find the index of sup{x} in seq (i.e. the
-    element on the right). The sequence *must* be ordered. This is like
-    numpy.searchsorted with side='right'.'''
+cdef inline int _binsearch(double x, object seq, int start, int stop):
+    '''
+    See binsearch
+    '''
     cdef cnp.ndarray[cnp.float64_t, ndim=1] _seq = seq
-    if x <= _seq[start]:
-        return start
-    if stop - start == 1:
+    if x < _seq[start]:
+        return 0
+    if x >= _seq[stop]:
+        return len(seq)
+    if start == stop - 1:
         return stop
     cdef int mid = <int>((stop - start) / 2) + start
     if x == _seq[mid]:
         return mid
     elif x < _seq[mid]:
-        return _supidx(x,_seq,start,mid)
+        return _binsearch(x, _seq, start, mid)
     else:
-        return _supidx(x,_seq,mid,stop)
+        return _binsearch(x, _seq, mid, stop)
 
-def supidx(x,seq,start,stop):
-    return _supidx(x,np.asarray(seq, dtype=DTYPE),start,stop)
+def binsearch(x, seq):
+    ''' 
+    Binary search. 
+    
+    The array seq *must* be ordered and must not contain any duplicate.
+    
+    Returns the index into seq such that inserting before the index would keep
+    seq sorted. If all(x < seq) returns 0, if all(x > seq) returns N
+    '''
+    seq = np.asarray(seq, dtype=np.double)
+    return _binsearch(float(x), seq, 0, len(seq)-1)
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.profile(False)
-cdef inline object _randwpmf(object pmfarr, int num, object prng):
+cdef inline object _randwpmf(object pmf, int num, object prng):
     '''
     See doctype of _randwpmf.randwpmf
     '''
     if num < 0:
         raise ValueError('invalid number of elements: %s' % num)
     cdef:
-        cnp.ndarray[DTYPE_t, ndim=1] pmf = np.asarray(pmfarr, dtype=DTYPE)
-        int i, n = len(pmf)
-        cnp.ndarray[DTYPE_t, ndim=1] cdf = np.empty([ n ], dtype=DTYPE)
-        DTYPE_t norm_sum = 0.0
-        cnp.ndarray[DTYPE_t, ndim=1] u = prng.random_sample(num)
+        cnp.ndarray[cnp.double_t, ndim=1] _pmf = np.asarray(pmf, dtype=np.double)
+        int i, n = len(_pmf)
+        cnp.ndarray[cnp.double_t, ndim=1] cdf = np.empty([ n ], dtype=np.double)
+        cnp.double_t norm_sum = 0.0
+        cnp.ndarray[cnp.double_t, ndim=1] u = prng.random_sample(num)
     norm_sum = 0.
     for i in xrange(n):
-        norm_sum += pmf[i]
+        norm_sum += _pmf[i]
     if norm_sum <= 0.:
         raise ValueError('argument is not a valid probability mass function')
     for i in xrange(n):
-        cdf[i] = pmf[i] / norm_sum
+        cdf[i] = _pmf[i] / norm_sum
         if i > 0:
             cdf[i] = cdf[i-1] + cdf[i]
     res = deque()
     for j in xrange(len(u)):
-        res.append(_supidx(u[j], cdf, 0, n))
+        res.append(binsearch(u[j], cdf, 0, n-1))
     return np.asarray(res)
 
 cpdef object randwpmf(object pmf, int num=1, object prng=np.random):
@@ -67,7 +76,7 @@ cpdef object randwpmf(object pmf, int num=1, object prng=np.random):
     samples an array of random integers with prescribed probability mass
     function 'pmf'. The size of the array is given, else a random scalar is
     returned.
-
+    
     Parameters
     ----------
     pmf     - a sequence of probability masses (e.g. bin frequencies)
@@ -76,38 +85,76 @@ cpdef object randwpmf(object pmf, int num=1, object prng=np.random):
     '''
     return _randwpmf(pmf, num, prng)
 
-@cython.profile(False)
-cdef inline cnp.float64_t _ecdf(float x, object data):
-    ''' data *must* be a sorted array '''
-    cdef int n = len(data)
-    return _supidx(x, data, 0, n) / n
+@cython.wraparound(False)
+@cython.boundscheck(False)
+cpdef cnp.float64_t adk(object x):
+    cdef int k, N, I, nmi 
+    cdef double incsum, A, H, h, g, a, b, c, d, V, t            # 
+    cdef int i, ii, ji                                          # indices
+    cdef cnp.ndarray[cnp.int_t, ndim=1] r, idx, n               
+    cdef cnp.ndarray[cnp.double_t, ndim=1] C, M, j, den, num
+    k = len(x)
+    n = np.asarray(map(len, x))
+    if np.any( n <= 4 ):
+        warn('at least one sample with less than 5 observations',
+                category=UserWarning)
+    N = np.sum(n)
+    x = map(np.asarray, x)
+    idx = np.argsort(np.hstack(x)) # sorting indices
+    I = 0
+    j = np.arange(1,N, dtype=float) # [1 ... N-1]
+    den = j * j[::-1]       # inner summand's denominator
+    incsum = 0.             # incremental summand
+    for i in xrange(k):
+        C = np.zeros((N,))
+        # ranks of observations from i-th sample in the full sample
+        r = np.nonzero((idx >= I) & (idx < I+n[i]))[0]
+        # C is an indicator array for sample i: C[:j].sum() = M_ij
+        C[r] = 1 
+        M = C.cumsum()
+        # inner summation goes from 1 to N-1
+        num = (N * M[:-1] - j * n[i])**2 
+        incsum += np.sum(num/den) / n[i]
+        I += n[i]
+    A = incsum / N
+    H = np.sum(np.asarray(n, dtype=float)**-1)
+    h = np.sum(j**-1)
+    g = 0.
+    for ii in xrange(1,N-1):
+        nmi = N - ii
+        for ji in xrange(ii, N-1):
+            g += 1. / ( (ji+1) * nmi )
+    a = ( 4*g - 6 ) * ( k - 1 ) + ( 10 - 6*g ) * H
+    b = ( 2*g - 4 ) * k**2 + 8*h*k + ( 2*g - 14*h - 4 )*H - 8*h + 4*g - 6
+    c = ( 6*h + 2*g - 2 )*k**2 + ( 4*h - 4*g + 6 )*k + ( 2*h - 6 )*H + 4*h
+    d = ( 2*h + 6 ) * k**2 - 4*h*k
+    V = ( a*N**3 + b*N**2 + c*N + d ) / ( ( N - 1 )*( N - 2 )*( N - 3 ) )
+    t = ( A - ( k - 1. ) ) / np.sqrt( V )
+    return t
 
 @cython.wraparound(False)
 @cython.boundscheck(False)
-cpdef cnp.float64_t auc(object seqa, object seqb):
+cpdef auc(object a, object b):
     '''
     computes the Area Under Curve between empirical distribution function of
-    datasets seqa and seqb
+    datasets a and b
     '''
-    seqas = np.asarray(sorted(seqa), dtype=np.float64)
-    seqbs = np.asarray(sorted(seqb), dtype=np.float64)
-    seq = np.hstack([seqa, seqb])
-    if len(seqas) == len(seqbs):
-        seq.sort(kind='mergesort')
-    else:
-        seq.sort()
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] _seq = seq
-    cdef cnp.float64_t area = 0.0, midpoint, xu, xl, yu, yl
-    cdef int i
-    for i in xrange(len(_seq)-1):
-        xl = _seq[i]
-        xu = _seq[i+1]
-        midpoint = (xu - xl) / 2.0
-        if _ecdf(midpoint, seqas) >= _ecdf(midpoint, seqbs):
-            yu = _ecdf(midpoint, seqas)
-            yl = _ecdf(midpoint, seqbs)
-        else:
-            yu = _ecdf(midpoint, seqbs)
-            yl = _ecdf(midpoint, seqas)
-        area += (xu - xl) * (yu - yl)
+    cdef int na, nb, i
+    cdef cnp.ndarray[cnp.double_t, ndim=1] _a,_b, c
+    cdef double area, xi, xip, xm, ya, yb
+    na, nb = len(a), len(b)
+    _a= np.asarray(a)
+    _b = np.asarray(b)
+    a.sort()
+    b.sort()
+    c = np.hstack([a, b])
+    c.sort()
+    area = 0.0
+    for i in xrange(na+nb-1):
+        xi = c[i]
+        xip = c[i+1]
+        xm = (xip - xi) / 2. + xi
+        ya = _binsearch(xm, a, 0, na-1) / na
+        yb = _binsearch(xm, b, 0, nb-1) / nb
+        area += (xip - xi) * abs(ya - yb)
     return area

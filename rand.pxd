@@ -1,4 +1,3 @@
-# cimport numpy as cnp # apparently not needed
+cimport numpy as cnp 
 cdef inline object _randwpmf(object, int, object)
-cdef inline int _supidx(float, object, int, int)
-cdef inline cnp.float64_t _ecdf(float, object)
+cdef inline int _binsearch(float, object, int, int)
