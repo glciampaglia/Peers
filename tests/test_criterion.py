@@ -2,6 +2,7 @@ from criterion import *
 import numpy as np
 from numpy.testing import assert_approx_equal
 from nose import SkipTest
+from warnings import warn
 
 def R_factory(name, vector_type='float'):
     '''
@@ -13,8 +14,15 @@ def R_factory(name, vector_type='float'):
     vector_type - string
         R Vector type used for packing args. Either 'float' or 'int'.
     '''
-    from rpy2.robjects.packages import importr
-    from rpy2.robjects import FloatVector, IntVector, r
+    try:
+        from rpy2.robjects.packages import importr
+        from rpy2.robjects import FloatVector, IntVector, r
+        from rpy2.rinterface import RRuntimeError
+    except ImportError:
+        warn('''module rpy2 is missing. 
+    Please install it from: http://rpy.sourceforge.net/rpy2.html''',
+                category=UserWarning)
+        raise SkipTest
     
     if vector_type not in ['float', 'int']:
         raise ValueError('unknown vector_type: %s' % vector_type)
@@ -25,7 +33,10 @@ def R_factory(name, vector_type='float'):
     
     idx = name.find('.')
     package_name, func_name = name[:idx], name[idx+1:]
-    package = importr(package_name)
+    try:
+        package = importr(package_name)
+    except RRuntimeError:
+        raise ImportError('rpy2: cannot import R package %s' % package_name)
     rfunc = getattr(package, func_name)
     
     def wrapper(*args, **kwargs):
