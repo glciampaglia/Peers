@@ -27,9 +27,10 @@ def execpipe(cmd):
     procs = []
     for c in cmdseq:
         if prev_proc is not None:
-            p = sp.Popen(c.split(), stdin=prev_proc.stdout, stdout=sp.PIPE)
+            p = sp.Popen(c.split(), stdin=prev_proc.stdout, stdout=sp.PIPE,
+                    stderr=sp.PIPE)
         else:
-            p = sp.Popen(c.split(), stdout=sp.PIPE)
+            p = sp.Popen(c.split(), stdout=sp.PIPE, stderr=sp.PIPE)
         procs.append(p)
         prev_proc = p
     try:
