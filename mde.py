@@ -1,8 +1,8 @@
-# coding : utf-8
-# file: fit.py
+# coding=utf-8
+# file: mde.py
 # vim:ts=8:sts=4:sw=4
 
-''' Computational model fitting script with cross-validation '''
+''' Minimum Distance Estimation fitting, with cross-validation '''
 
 import sys
 import re
@@ -12,11 +12,10 @@ import numpy as np
 from scipy.interpolate import Rbf
 from scipy.optimize import fmin_l_bfgs_b
 from scipy.spatial import KDTree
-from scipy.stats import ks_2samp
+from scipy.stats import ks_2samp, mannwhitneyu
 
 from myio import load
-from rand import auc as c_auc
-from chisq2sam import chisq2sam
+from criterion import *
 
 # Kolmogorov-Smirnov, default for continuous data
 def ks(a, bseq):
@@ -24,14 +23,24 @@ def ks(a, bseq):
 
 # 2-samples Chi-square distance, for binned data with same number of bins
 def chisq(a, bseq):
-    return [ chisq2sam(a, b)[0] for b in bseq ]
+    return [ chisq_2sam(a, b)[0] for b in bseq ]
 
 # Area under curve
 def auc(a, bseq):
     return [ c_auc(a,b) for b in bseq ]
 
-# TODO add Anderson-Darling two samples test
-# TODO add Cramer-Von Mises (?)
+# TODO U is not distance-like. Should find a suitable transformation.
+## Mann-Whitney U (or Wilcoxon rank-sum test)
+#def mwu(a, bseq):
+#    return [ mannwhitneyu(a,b)[0] for b in bseq ]
+
+# Cramér-Von Mises 2 samples test 
+def cvm(a, bseq):
+    return [ cvmt(a,b) for b in bseq ]
+
+# Anderson-Darling 2-samples test
+def adk(a, bseq):
+    return [ c_adk([a,b]) for b in bseq ]
 
 # estimation of \epsilon
 def _epsilon(points, func=np.median):
@@ -83,16 +92,16 @@ class FitResult(object):
         keys = map(str, keys)
         N = np.max(map(len, keys))
         return [ '%s : %s' % (k.rjust(N), v) for k,v in zip(keys,values) ]
-    def __repr__(self):
+    def __str__(self):
         try:
-            return self._repr()
+            return self._str()
         except:
             import warnings
             cls_name = self.__class__.__name__
-            warnings.warn('problem with %s.__repr__' % cls_name,
+            warnings.warn('problem with %s.__str__' % cls_name,
                     category=UserWarning)
             return object.__repr__(self)
-    def _repr(self):
+    def _str(self):
         ''' May raise exceptions. Use __repr__ instead. '''
         s = StringIO()
         print >> s, 'theta = (\n%s\n)' % '\n'.join(self.ppdict(self.names,
@@ -110,12 +119,8 @@ class FitResult(object):
         return s.getvalue()
 
 def fit(args):
-    ''' Returns a FitResult instance, which can be printed directly:
-
-    >>> ret = fit(args)
-    >>> print ret
-    ...
-    >>>
+    ''' 
+    Returns a FitResult instance
     '''
     args.prng = np.random.RandomState(args.seed)
     simulated_data = [ np.vstack(d) for d in args.simulations.itergrouped() ]
@@ -165,6 +170,20 @@ def plot_fit_results(args, ret):
     pp.draw()
     pp.show()
 
+class CVResults(object):
+    def __init__(self, resdict):
+        self.__dict__.update(resdict)
+    def __str__(self):
+        s = StringIO()
+        for name, value in self.__dict__.iteritems():
+            r = np.corrcoef(value, rowvar=0)[0,1] 
+            rms = np.sqrt(np.add.reduce(np.diff(value)**2))
+            print >> s, 'parameter: %s, r = %.2g, RMS = %.2g'\
+                    % ( name, round(r,2), round(rms,2))
+        return s.getvalue()
+    def data(self):
+        return dict(**self.__dict__)
+
 def cv(args):
     res = []
     args.prng = np.random.RandomState(args.seed)
@@ -189,24 +208,37 @@ def cv(args):
     res = CVResults(dict(zip(args.simulations.index.dtype.names, res)))
     if args.output:
         np.savez(args.output, **res.data())
+    if args.plot:
+        plot_cv_results(args, res.data())
     return res
 
-class CVResults(object):
-    def __init__(self, resdict):
-        self.__dict__.update(resdict)
-    def __repr__(self):
-        s = StringIO()
-        print >> s, object.__repr__(self)
-        for name, value in self.__dict__.iteritems():
-            r = np.corrcoef(value, rowvar=0)[0,1] 
-            rms = np.sqrt(np.add.reduce(np.diff(value)**2))
-            print >> s, 'parameter: %s, r = %.2g, RMS = %.2g'\
-                    % ( name, round(r,2), round(rms,2))
-        return s.getvalue()
-    def data(self):
-        return dict(**self.__dict__)
+def plot_cv_results(args, res):
+    import matplotlib.pyplot as pp
+    for name, points in res.iteritems():
+        points = np.asarray(points)
+        xlims, ylims = [ ( np.min(pax), np.max(pax) ) for pax in points.T ]
+        m, M = points.min(), points.max()
+        fig = pp.figure()
+        ax = fig.add_subplot(111)
+        ax.plot(*points.T, **dict(color='w', marker='o', ls=''))
+        ax.plot([m, M], [m, M], color='r')
+        ax.set_xlim(xlims)
+        ax.set_ylim(ylims)
+        tx = xlims[0] + np.diff(xlims) * .25
+        ty = ylims[0] + np.diff(ylims) * .75
+        ax.text(tx,ty, r'$r = %.2g$' % np.corrcoef(points, rowvar=0)[0,1],
+                fontsize=14)
+        if name.find('_') is not None:
+            ax.set_title(name, fontsize=16)
+        else:
+            ax.set_title(r'$\%s$' % name,fontsize=16)
+        ax.set_xlabel('observed', fontsize=14)
+        ax.set_ylabel('predicted', fontsize=14)
+    pp.draw()
+    pp.show()
 
-DISTANCES = ['ks', 'chisq', 'auc']
+DISTANCES = ['ks', 'chisq', 'auc', 'cvm', 'adk']
+TARGETS = [ks, chisq, auc, cvm, adk]
 
 BASIS_FUNCS = (
         'multiquadric',
@@ -254,7 +286,7 @@ def make_parser():
             help='%(metavar)s is one of { %(choices)s }, default: %(default)s', 
             default=ks, 
             action=MapChoices,
-            targets=[ks, chisq, auc])
+            targets=TARGETS)
     parser.add_argument(
             '-b',
             '--basis', 
@@ -325,6 +357,11 @@ def make_parser():
             type=FileType('w'), 
             help='write output to %(metavar)s', 
             metavar='FILE')
+    cv_parser.add_argument(
+            '-p',
+            '--plot', 
+            action='store_true',
+            help='plot cross-validation scatter plots')
     parser.add_argument('simulations',
             help='simulations archive',
             action=NumPyLoad,
