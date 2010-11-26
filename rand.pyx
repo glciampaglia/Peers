@@ -89,16 +89,18 @@ cpdef object randwpmf(object pmf, int num=1, object prng=np.random):
 @cython.boundscheck(False)
 cpdef cnp.float64_t adk(object x):
     cdef int k, N, I, nmi 
-    cdef double incsum, A, H, h, g, a, b, c, d, V, t            # 
+    cdef double Nd, kd, incsum, A, H, h, g, a, b, c, d, V, t    # 
     cdef int i, ii, ji                                          # indices
     cdef cnp.ndarray[cnp.int_t, ndim=1] r, idx, n               
     cdef cnp.ndarray[cnp.double_t, ndim=1] C, M, j, den, num
     k = len(x)
+    kd = <double>k
     n = np.asarray(map(len, x))
     if np.any( n <= 4 ):
         warn('at least one sample with less than 5 observations',
                 category=UserWarning)
     N = np.sum(n)
+    Nd = <double>N
     x = map(np.asarray, x)
     idx = np.argsort(np.hstack(x)) # sorting indices
     I = 0
@@ -117,20 +119,22 @@ cpdef cnp.float64_t adk(object x):
         incsum += np.sum(num/den) / n[i]
         I += n[i]
     A = incsum / N
-    H = np.sum(np.asarray(n, dtype=float)**-1)
-    h = np.sum(j**-1)
-    g = 0.
-    for ii in xrange(1,N-1):
-        nmi = N - ii
-        for ji in xrange(ii, N-1):
-            g += 1. / ( (ji+1) * nmi )
-    a = ( 4*g - 6 ) * ( k - 1 ) + ( 10 - 6*g ) * H
-    b = ( 2*g - 4 ) * k**2 + 8*h*k + ( 2*g - 14*h - 4 )*H - 8*h + 4*g - 6
-    c = ( 6*h + 2*g - 2 )*k**2 + ( 4*h - 4*g + 6 )*k + ( 2*h - 6 )*H + 4*h
-    d = ( 2*h + 6 ) * k**2 - 4*h*k
-    V = ( a*N**3 + b*N**2 + c*N + d ) / ( ( N - 1 )*( N - 2 )*( N - 3 ) )
-    t = ( A - ( k - 1. ) ) / np.sqrt( V )
-    return t
+    return A
+#    H = np.sum(np.asarray(n, dtype=float)**-1)
+#    h = np.sum(j**-1)
+#    g = 0.
+#    for ii in xrange(1,N-1):
+#        nmi = N - ii
+#        for ji in xrange(ii, N-1):
+#            g += 1. / ( (ji+1) * nmi )
+#    a = ( 4*g - 6 ) * ( kd - 1 ) + ( 10 - 6*g ) * H
+#    b = ( 2*g - 4 ) * kd**2 + 8*h*kd + ( 2*g - 14*h - 4 )*H - 8*h + 4*g - 6
+#    c = ( 6*h + 2*g - 2 )*kd**2 + ( 4*h - 4*g + 6 )*kd + ( 2*h - 6 )*H + 4*h
+#    d = ( 2*h + 6 ) * kd**2 - 4*h*kd
+#    V = ( a*Nd**3 + b*Nd**2 + c*Nd + d ) / ( ( Nd - 1 )*( Nd - 2 )*( Nd - 3 ) )
+#    t = ( A - ( kd - 1. ) ) / np.sqrt( V )
+##    print A, H, h, g, a, b, c, d, V, t
+#    return t
 
 @cython.wraparound(False)
 @cython.boundscheck(False)

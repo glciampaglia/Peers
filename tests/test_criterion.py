@@ -80,3 +80,9 @@ def test_adk():
     assert_approx_equal(adk(x,y), expected, significant=5)
     assert_approx_equal(c_adk([x,y]), expected, significant=5)
     assert_approx_equal(adk(x,y), c_adk([x,y]))
+
+def test_adk_stability():
+    x = np.random.randn(2,20000) # Large N
+    y = np.random.randn(1000,10) # Large k
+    assert_approx_equal(adk(*x), c_adk(x))
+    assert_approx_equal(adk(*y), c_adk(y))

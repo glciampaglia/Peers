@@ -133,11 +133,12 @@ def chisq_2sam(f_obs1, f_obs2):
 #-------------------------------------------------------------------------------
 
 # TODO <Thu Nov 25 13:25:54 CET 2010> compute adjusted A in case of ties
-# TODO <Thu Nov 25 14:06:13 CET 2010> cythonize computation of g
 def adk(*x):
     '''
-    Calculates the Anderson-Darling k-sample test statistic. Note: this code
-    does not correct for ties!
+    Calculates the Anderson-Darling k-sample test statistic. 
+    
+    Note: this code does not correct for ties!
+    Note: returns the value of A_k^2, not the standardized t value of the test
     '''
     k = len(x)
     n = map(len, x)
@@ -163,15 +164,19 @@ def adk(*x):
         incsum += np.sum(num/den) / n[i]
         I += n[i]
     A = incsum / N
-    H = np.sum(np.asarray(n, dtype=float)**-1)
-    h = np.sum(j**-1)
-    g = 0.
-    for i in xrange(1,N-1):
-        g += np.sum( (j[i:] * (N-i))**-1 )
-    a = ( 4*g - 6 ) * ( k - 1 ) + ( 10 - 6*g ) * H
-    b = ( 2*g - 4 ) * k**2 + 8*h*k + ( 2*g - 14*h - 4 )*H - 8*h + 4*g - 6
-    c = ( 6*h + 2*g - 2 )*k**2 + ( 4*h - 4*g + 6 )*k + ( 2*h - 6 )*H + 4*h
-    d = ( 2*h + 6 ) * k**2 - 4*h*k
-    V = ( a*N**3 + b*N**2 + c*N + d ) / ( ( N - 1 )*( N - 2 )*( N - 3 ) )
-    t = ( A - ( k - 1. ) ) / np.sqrt( V )
-    return t
+    return A
+# This part computes the variance of A_k^2 and is used to return a standardized
+# value.
+#
+#    H = np.sum(np.asarray(n, dtype=float)**-1)
+#    h = np.sum(j**-1)
+#    g = 0.
+#    for i in xrange(1,N-1):
+#        g += np.sum( (j[i:] * (N-i))**-1 )
+#    a = ( 4*g - 6 ) * ( k - 1 ) + ( 10 - 6*g ) * H
+#    b = ( 2*g - 4 ) * k**2 + 8*h*k + ( 2*g - 14*h - 4 )*H - 8*h + 4*g - 6
+#    c = ( 6*h + 2*g - 2 )*k**2 + ( 4*h - 4*g + 6 )*k + ( 2*h - 6 )*H + 4*h
+#    d = ( 2*h + 6 ) * k**2 - 4*h*k
+#    V = ( a*N**3 + b*N**2 + c*N + d ) / ( ( N - 1 )*( N - 2 )*( N - 3 ) )
+#    t = ( A - ( k - 1. ) ) / np.sqrt( V )
+#    return t
