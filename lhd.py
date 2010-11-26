@@ -4,6 +4,8 @@
 
 ''' Latin Hypercube Designs '''
 
+import sys
+from argparse import ArgumentParser, Action
 import numpy as np
 from scipy.spatial.distance import pdist
 
@@ -52,10 +54,14 @@ def lhd(m,n,num=None,ranges=None,prng=np.random,maximin=False):
 
     Examples
     --------
-    # list of indices for each grid
-    >>> idx = map(tuple,lhd(2,5))
-    # coordinates of the first center
-    >>> xc,yc = x[idx[0]], y[idx[0]]
+    >>> prng = np.random.RandomState(0)
+    >>> x, y = np.mgrid[0:1:5j, 0:1:5j]
+    >>> d, design = lhd(2,5, prng=prng)
+    >>> print d
+    1.41421356237
+    >>> idx = map(tuple, design)    # list of indices for each grid
+    >>> x[idx[0]], y[idx[0]]        # coordinates of the first center
+    (0.5, 0.0)
     """
     if ranges is not None and len(ranges) != m:
         raise ValueError('expecting %d ranges' % m)
@@ -85,3 +91,74 @@ def lhd(m,n,num=None,ranges=None,prng=np.random,maximin=False):
         else:
             return list(lhd_iter)
 
+description = 'Latin Hypercube Design generation '
+
+class AppendTuple(Action):
+    def __call__(self, parser, ns, values, option_string=None):
+        option = getattr(ns, self.dest)
+        if option is None:
+            option = [ tuple(values) ]
+        else:
+            option.append(tuple(values))
+        setattr(ns, self.dest, option)
+
+def make_parser():
+    parser = ArgumentParser()
+    parser.add_argument(
+            'num',
+            help='generate a design with %(metavar)s points',
+            type=int)
+    parser.add_argument(
+            'dims',
+            help='number of dimensions of the space',
+            type=int)
+    parser.add_argument(
+            '-m',
+            '--maximin',
+            dest='maximin_num',
+            metavar='NUM',
+            help='maximize minimum distance over %(metavar)s designs',
+            type=int)
+    parser.add_argument(
+            '-r',
+            '--range',
+            nargs=2,
+            type=float,
+            action=AppendTuple,
+            help='specify range for i-th dimension',)
+    parser.add_argument(
+            '-s',
+            '--seed',
+            type=int,
+            help='PRNG seed')
+    parser.add_argument(
+            '-S',
+            '--separator',
+            default=',',
+            help='output separator')
+    parser.add_argument(
+            '-D',
+            '--debug',
+            action='store_true',
+            help='raise Python exceptions to the console')
+    return parser
+
+def main(args):
+    prng = np.random.RandomState(args.seed)
+    args.maximin = (args.maximin_num is not None)
+    dist, design = lhd(args.dims, args.num, num=args.maximin_num, 
+            ranges=args.range, maximin=args.maximin, prng=prng)
+    for p in design:
+        print args.separator.join(map(str,p))
+
+if __name__ == '__main__':
+    parser = make_parser()
+    ns = parser.parse_args()
+    try:
+        main(ns)
+    except:
+        ty, val, tb = sys.exc_info()
+        if ns.debug:
+            raise ty, val, tb
+        else:
+            parser.error('%s : %s' % (ty.__name__, val))
