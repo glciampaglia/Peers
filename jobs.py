@@ -1,130 +1,148 @@
-''' generates L.H.D. designs, grids, etc etc '''
+#!/usr/bin/env python
+# coding=utf-8
 
+import os
 import sys
 import numpy as np
-from lhd import lhd as _lhd
+import datetime
+import socket
 from argparse import ArgumentParser, FileType
 
-descr='Generates Jobs'
+# TODO <Sat Nov 27 19:21:47 CET 2010>
+# 1. write test cases
 
-def dimstoargs(args):
-    res = [ '--%s %%(%s)g' % (name, name) for name in args.dimensions ]
-    return ' '.join(res)
+descr='Generate simulation commands from an input sample'
 
-def makecmdline(args):
-    '''
-    returns a command line template where dimensions are translated to arguments
-    to main script. 
+special_help='''
+A number of parameter names you can pass to -p/--parameters are interpreted as
+special parameters. The script will recognize this and add additional
+information to the input sample points. This can help in some situations when
+the commands you want to execute must contain additional information to the
+values of the input sample points.
 
-    'python peers.py --confidence %(confidence)g' > output-%(run)d.npy'
-    '''
-    cmds = []
-    script_args = dimstoargs(args)
-    script = args.script + ' ' + script_args
-    if args.script_defaults:
-        cmds.append(script + ' ' + '@' + args.script_defaults)
-    else:
-        cmds.append(script)
-    if args.post:
-        for i, post in enumerate(args.post):
-            if i < len(args.post_defaults):
-                cmds.append(post + ' ' + '@' + args.post_defaults[i])
-            else:
-                cmds.append(post)
-        cmds[-1] += ' ' + args.output_template + '-%(run)d' + '.npy'
-        return ' | '.join(cmds)
-    else:
-        cmds[0] += ' > ' + args.output_template + '-%(run)d' + '.npy'
-        return cmds[0]
+Note that when you declare any special parameter you must also declare all other
+parameter names and use the corresponding syntax for string substitution in your
+command templates, i.e., you cannot mix '%g' and %(param)s in your command
+templates.
 
-def lhd(args):
-    m = len(args.dimensions)
-    prng = np.random.RandomState(args.seed)
-    if args.maximin:
-        d,design = _lhd(m, args.size, ranges=args.ranges, maximin=1,
-                num=args.maximin_trials, prng=prng)
-    else:
-        d,design = _lhd(m, args.size, ranges=args.ranges, prng=prng)
-    return design
+Special parameter names you can use in command templates are:
 
-def repeat_flat(sequence, num=1):
-    for elem in sequence:
-        for i in xrange(num):
-            yield elem
+'num'   - job number. 
+          Useful for redirecting to numbered output files, e.g.: 
+            
+        python lt.py -l > output-%(num)d
 
-def iterjobs(args, design):
-    cmdline = makecmdline(args)
-    for i, point in enumerate(design):
-        argsdict = dict(zip(args.dimensions, point))
-        argsdict['run'] = i
-        yield (cmdline % argsdict)
+'rep'   - repetition index
 
-def grid(args):
-    m = len(args.dimensions)
-    design = np.mgrid[[slice(a,b,args.resolution*1j) for a,b in args.ranges]]
-    return np.c_[map(np.ravel,design)].T
+'date'  - the current date as returned by datetime.date.today()
+
+'user'  - user's name, taken from the shell environment
+
+'host'  - host name, taken with (2) gethostname
+
+'time'  - the current time stamp as returned by datetime.datetime.now()
+'''
 
 def make_parser():
     parser = ArgumentParser(description=descr, fromfile_prefix_chars='@')
-    parser.add_argument('script', help='simulation script')
-    parser.add_argument('-D', '--debug', action='store_true', 
-            help='Raise Python exceptions to the console')
-    parser.add_argument('-p', '--post', action='append', default=[], 
-            help='add post-processing script', metavar='script')
-    parser.add_argument('-d', '--dimensions', action='append',
-            help='define a simulation argument', default=[])
-    parser.add_argument('-r', '--ranges', nargs=2, type=float, metavar='value',
-            help='define a range of values', action='append', default=[])
-    parser.add_argument('-s', '--script-defaults', metavar='file')
-    parser.add_argument('-S', '--post-defaults', action='append', default=[])
-    parser.add_argument('-o','--output-template', default='output',
-            help='template for output files')
-    parser.add_argument('-R', '--realizations', default=1, type=int,
-            metavar='num',
-            help='Produce %(metavar)s realizations for each vector of parameters')
-    subparsers = parser.add_subparsers()
-# LHD parser
-    parser_lhd = subparsers.add_parser('lhd', help='Latin hypercube design')
-    parser_lhd.add_argument('size', type=int, help='design size')
-    parser_lhd.add_argument('-m', '--maximin', help='generate maximin design',
-            action='store_true')
-    parser_lhd.add_argument('-t', '--maximin-trials', type=int, default=10000,
-            help='maximizes minimum distance over %(metavar)s trials',
-            metavar='NUM')
-    parser_lhd.add_argument('--seed', type=int, help='PRNG seed', metavar='seed')
-    parser_lhd.set_defaults(design_func=lhd)
-# Grid parser
-    parser_grid = subparsers.add_parser('grid', help='Dense grid')
-    parser_grid.add_argument('resolution', type=int, help='grid resolution')
-    parser_grid.set_defaults(design_func=grid)
+    parser.add_argument(
+            'cmd',
+            help='command line template',
+            nargs='*',
+            metavar='COMMAND')
+    parser.add_argument('-c',
+            '--cmds',
+            nargs='+',
+            type=FileType('r'), 
+            metavar='FILE',
+            help='read command template from %(metavar)s, produce pipe command')
+    parser.add_argument(
+            '-D',
+            '--debug',
+            action='store_true', 
+            help='raise Python exceptions to the console')
+    parser.add_argument(
+            '-r',
+            '--repetitions',
+            type=int,
+            metavar='NUM',
+            help='number of repetitions in input sample')
+    parser.add_argument(
+            '-i',
+            '--input',
+            type=FileType('r'),
+            default=sys.stdin,
+            metavar='FILE',
+            help='read input sample from %(metavar)s')
+    parser.add_argument('-s',
+            '--separator',
+            default=',',
+            metavar='CHAR', 
+            help='input values separated by %(metavar)s (default: \'%(default)s\')')
+    parser.add_argument(
+            '-p',
+            '--parameters',
+            nargs='+',
+            help='define parameter names (see --parameters-help)',
+            metavar='NAME')
+    parser.add_argument(
+            '-H',
+            '--parameters-help',
+            action='store_true',
+            help='more info on special parameter names you can use in command templates')
     return parser
 
-def check_arguments(args):
-    if len(args.dimensions) != len(args.ranges):
-        raise ValueError('dimensions/ranges mismatch')
+def decorate(args, pointsiter, name, decorator):
+    ''' decorate pointsiter with special parameter values '''
+    args.parameters.remove(name)
+    args.parameters.append(name)
+    return ( decorator(point) for point in pointsiter )
 
 def main(args):
-    design = args.design_func(args)
-    design = list(repeat_flat(design, args.realizations))
-    design = sorted(map(tuple, design)) 
-    design = np.asarray(design)
-    for job in iterjobs(args, design):
-        print job
-    dty = np.dtype(zip(args.dimensions, [ np.double ]*len(args.dimensions)))
-    np.save(args.output_template + '_index.npy', design.view(dty).flatten())
-    try:
-        f = open(args.script_defaults)
-        defs = [ l.strip() for l in f.readlines() ]
-    finally:
-        f.close()
-    defs = np.asarray(zip(defs[::2], defs[1::2]), dtype='S10, f8')
-    np.save(args.output_template + '_defaults.npy', defs)
+    if args.parameters_help:
+        print >> sys.stderr, special_help
+        return
+    cmds = args.cmd 
+    if args.cmds is not None:
+        cmds.extend([ c.readline().strip() for c in args.cmds ])
+    cmdline = ' | '.join(cmds)
+    if args.input.isatty():
+        print >> sys.stderr, 'Reading sample from standard input ...'
+    pointsiter = ( tuple(map(eval, line.strip().split(args.separator)))
+            for line in iter(args.input.readline, '') )
+    if args.parameters is not None:
+        if 'num' in args.parameters:
+            pointsiter = decorate(args, enumerate(pointsiter), 'num', 
+                    lambda k : k[1] + (k[0],) )
+        if 'date' in args.parameters:
+            d = datetime.date.today()
+            pointsiter = decorate(args, pointsiter, 'date', 
+                    lambda k : k + (d,))
+        if 'user' in args.parameters:
+            user = os.environ['USER']
+            pointsiter = decorate(args, pointsiter, 'user', 
+                    lambda k : k + (user,))
+        if 'host' in args.parameters:
+            host = socket.gethostname()
+            pointsiter = decorate(args, pointsiter, 'host', 
+                    lambda k : k + (host,))
+        if 'time' in args.parameters:
+            func = lambda k : k + (datetime.datetime.now().time(),)
+            pointsiter = decorate(args, pointsiter, 'time', func)
+        if 'rep' in args.parameters:
+            if not args.repetitions:
+                raise ValueError(
+                        'must specify a number of repetitions (-r/--repetitions)')
+            func = lambda k : k[1] + (k[0] % args.repetitions,)
+            pointsiter = decorate(args, enumerate(pointsiter), 'rep', func)
+        pointsiter = ( dict(zip(args.parameters, point)) for point in pointsiter)
+    for point in pointsiter:
+        print cmdline % point
 
 if __name__ == '__main__':
     parser = make_parser()
     ns = parser.parse_args()
     try:
-        check_arguments(ns)
         main(ns)
     except:
         ty,val,tb = sys.exc_info()
@@ -132,5 +150,5 @@ if __name__ == '__main__':
             raise ty, val, tb
         else:
             name = ty.__name__
-            print >> sys.stderr, '\n%s : %s\n' % (name, val)
+            parser.error('%s : %s' % (name, val))
 

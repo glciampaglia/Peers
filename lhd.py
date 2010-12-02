@@ -1,8 +1,9 @@
+#!/usr/bin/env python
 # coding=utf-8
 # file: lhd.py
 # vim:ts=8:sw=4:sts=4
 
-''' Latin Hypercube Designs '''
+''' Latin Hypercube Designs. © 2010 G.L. Ciampaglia '''
 
 import sys
 from argparse import ArgumentParser, Action
@@ -106,11 +107,13 @@ def make_parser():
     parser = ArgumentParser()
     parser.add_argument(
             'num',
-            help='generate a design with %(metavar)s points',
+            metavar='NUM',
+            help='generate a sample with %(metavar)s points',
             type=int)
     parser.add_argument(
-            'dims',
-            help='number of dimensions of the space',
+            'dimension',
+            metavar='DIMS',
+            help='number of dimensions of the sample',
             type=int)
     parser.add_argument(
             '-m',
@@ -120,12 +123,13 @@ def make_parser():
             help='maximize minimum distance over %(metavar)s designs',
             type=int)
     parser.add_argument(
-            '-r',
-            '--range',
+            '-i',
+            '--intervals',
             nargs=2,
             type=float,
             action=AppendTuple,
-            help='specify range for i-th dimension',)
+            metavar='VALUE',
+            help='specify interval for i-th dimension',)
     parser.add_argument(
             '-s',
             '--seed',
@@ -135,20 +139,32 @@ def make_parser():
             '-S',
             '--separator',
             default=',',
-            help='output separator')
+            help='output separator (default: \'%(default)s\')')
     parser.add_argument(
             '-D',
             '--debug',
             action='store_true',
             help='raise Python exceptions to the console')
+    parser.add_argument(
+            '-r',
+            '--repeat',
+            type=int,
+            default=1,
+            metavar='NUM',
+            help='repeat each input point %(metavar)s times')
     return parser
+
+def repeat(n, pointsiter):
+    for point in pointsiter:
+        for i in xrange(n):
+            yield point
 
 def main(args):
     prng = np.random.RandomState(args.seed)
     args.maximin = (args.maximin_num is not None)
-    dist, design = lhd(args.dims, args.num, num=args.maximin_num, 
-            ranges=args.range, maximin=args.maximin, prng=prng)
-    for p in design:
+    dist, design = lhd(args.dimension, args.num, num=args.maximin_num, 
+            ranges=args.intervals, maximin=args.maximin, prng=prng)
+    for p in repeat(args.repeat, design):
         print args.separator.join(map(str,p))
 
 if __name__ == '__main__':
