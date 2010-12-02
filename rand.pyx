@@ -68,7 +68,7 @@ cdef inline object _randwpmf(object pmf, int num, object prng):
             cdf[i] = cdf[i-1] + cdf[i]
     res = deque()
     for j in xrange(len(u)):
-        res.append(binsearch(u[j], cdf, 0, n-1))
+        res.append(_binsearch(u[j], cdf, 0, n-1))
     return np.asarray(res)
 
 cpdef object randwpmf(object pmf, int num=1, object prng=np.random):
