@@ -40,7 +40,7 @@ def cvm(a, bseq):
 
 # Anderson-Darling 2-samples test
 def adk(a, bseq):
-    return [ c_adk([a,b]) for b in bseq ]
+    return [ c_adk([a,b],0) for b in bseq ] # 0 is for non standardized A^2
 
 # estimation of \epsilon
 def _epsilon(points, func=np.median):

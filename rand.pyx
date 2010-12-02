@@ -87,7 +87,7 @@ cpdef object randwpmf(object pmf, int num=1, object prng=np.random):
 
 @cython.wraparound(False)
 @cython.boundscheck(False)
-cpdef cnp.float64_t adk(object x):
+cpdef cnp.float64_t adk(object x, int std):
     cdef int k, N, I, nmi 
     cdef double Nd, kd, incsum, A, H, h, g, a, b, c, d, V, t    # 
     cdef int i, ii, ji                                          # indices
@@ -119,22 +119,24 @@ cpdef cnp.float64_t adk(object x):
         incsum += np.sum(num/den) / n[i]
         I += n[i]
     A = incsum / N
-    return A
-#    H = np.sum(np.asarray(n, dtype=float)**-1)
-#    h = np.sum(j**-1)
-#    g = 0.
-#    for ii in xrange(1,N-1):
-#        nmi = N - ii
-#        for ji in xrange(ii, N-1):
-#            g += 1. / ( (ji+1) * nmi )
-#    a = ( 4*g - 6 ) * ( kd - 1 ) + ( 10 - 6*g ) * H
-#    b = ( 2*g - 4 ) * kd**2 + 8*h*kd + ( 2*g - 14*h - 4 )*H - 8*h + 4*g - 6
-#    c = ( 6*h + 2*g - 2 )*kd**2 + ( 4*h - 4*g + 6 )*kd + ( 2*h - 6 )*H + 4*h
-#    d = ( 2*h + 6 ) * kd**2 - 4*h*kd
-#    V = ( a*Nd**3 + b*Nd**2 + c*Nd + d ) / ( ( Nd - 1 )*( Nd - 2 )*( Nd - 3 ) )
-#    t = ( A - ( kd - 1. ) ) / np.sqrt( V )
-##    print A, H, h, g, a, b, c, d, V, t
-#    return t
+    if std:
+        H = np.sum(np.asarray(n, dtype=float)**-1)
+        h = np.sum(j**-1)
+        g = 0.
+        for ii in xrange(1,N-1):
+            nmi = N - ii
+            for ji in xrange(ii, N-1):
+                g += 1. / ( (ji+1) * nmi )
+        a = ( 4*g - 6 ) * ( kd - 1 ) + ( 10 - 6*g ) * H
+        b = ( 2*g - 4 ) * kd**2 + 8*h*kd + ( 2*g - 14*h - 4 )*H - 8*h + 4*g - 6
+        c = ( 6*h + 2*g - 2 )*kd**2 + ( 4*h - 4*g + 6 )*kd + ( 2*h - 6 )*H + 4*h
+        d = ( 2*h + 6 ) * kd**2 - 4*h*kd
+        V = ( a*Nd**3 + b*Nd**2 + c*Nd + d ) / ( ( Nd - 1 )*( Nd - 2 )*( Nd - 3 ) )
+        t = ( A - ( kd - 1. ) ) / np.sqrt( V )
+    #    print A, H, h, g, a, b, c, d, V, t
+        return t
+    else:
+        return A
 
 @cython.wraparound(False)
 @cython.boundscheck(False)

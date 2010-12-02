@@ -88,12 +88,13 @@ def test_adk():
     out = dict(r_adk(x,y).iteritems())
     expected = out['adk'][0]
     # adk::adk_test return values has only 5 significant digits
-    assert_approx_equal(adk(x,y), expected, significant=5)
-    assert_approx_equal(c_adk([x,y]), expected, significant=5)
-    assert_approx_equal(adk(x,y), c_adk([x,y]))
+    assert_approx_equal(adk(x,y, std=True), expected, significant=5)
+    assert_approx_equal(c_adk([x,y], 1), expected, significant=5)
+    assert_approx_equal(adk(x,y), c_adk([x,y], 0))
+    assert_approx_equal(adk(x,y, std=True), c_adk([x,y], 1))
 
 def test_adk_stability():
     x = np.random.randn(2,20000) # Large N
     y = np.random.randn(1000,10) # Large k
-    assert_approx_equal(adk(*x), c_adk(x))
-    assert_approx_equal(adk(*y), c_adk(y))
+    assert_approx_equal(adk(*x), c_adk(x, 0))
+    assert_approx_equal(adk(*y), c_adk(y, 0))
