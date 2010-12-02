@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+''' Post-processing script that computes user lifetime '''
+
 import sys
 from argparse import ArgumentParser, FileType
 import numpy as np

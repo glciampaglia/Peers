@@ -274,7 +274,7 @@ class NumPyLoad(Action):
                         (values, self.ext))
         setattr(ns, self.dest, load(values))
 
-description = 'Computational model fitting script'
+description = 'Minimum Distance Estimation tool. © 2010 G.L. Ciampaglia'
 
 def make_parser():
     parser = ArgumentParser(description=description)
@@ -309,8 +309,9 @@ def make_parser():
             help='Rbf epsilon (see scipy.interpolate.Rbf) default: estimated from data')
     parser.add_argument(
             '-S', 
-            '--seed', 
-            help='PRNG seed')
+            '--seed',
+            metavar='SEED',
+            help='initialize the random numbers generator with %(metavar)s')
     parser.add_argument(
             '-n', 
             '--min-trials', 

@@ -1,15 +1,15 @@
 # coding=utf-8
 
 ''' 
-Some distance measures from classic goodness of fit tests
+Some distance measures from classic goodness of fit (GoF) tests. 
 
 This module contains implementations of GoF test statistics that are not
 already part of SciPy. In the case of Chi-squared distance, we provide the
 2-samples version, while for Anderson-Darling's A^2 we provide the k-sample
 version.
-'''
 
-# TODO <Sun Nov 21 12:09:33 CET 2010> merge with adk.py
+© 2010 G.L. Ciampaglia
+'''
 
 from __future__ import division
 import numpy as np

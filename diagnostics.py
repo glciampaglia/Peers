@@ -1,3 +1,5 @@
+''' plots the number of users and pages '''
+
 from argparse import ArgumentParser, FileType
 
 # TODO <ven 29 ott 2010, 11.34.15, CEST> use scikits

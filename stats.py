@@ -1,4 +1,4 @@
-#!/usr/bin/env/python
+''' plots histogram of input data '''
 
 import numpy as np
 import matplotlib.pyplot as pp

@@ -1,7 +1,8 @@
-#!/usr/bin/env python
 # coding=utf-8
 # file: plot.py
 # vim:ts=8:sts=4:sw=4
+
+''' plotting & data inspection utility '''
 
 import numpy as np
 import matplotlib.pyplot as pp

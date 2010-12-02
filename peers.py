@@ -16,13 +16,23 @@ from time import time
 from rand import randwpmf
 from timeutils import si_str
 
+def myformatwarning(*args):
+    msg = args[0]
+    return '*** WARNING *** %s\n' % msg.args[0]
+
 # custom warning formatting
-formatwarning = lambda msg,cat,fn,lno,l: '*** WARNING *** ' + msg.args[0] + '\n'
+formatwarning = myformatwarning
 import warnings
 # default is saved in warnings._formatwarning
 warnings._formatwarning = warnings.formatwarning
 warnings.formatwarning = formatwarning
 from warnings import warn
+
+__all__ = [
+        'make_parser',
+        'check_arguments',
+        'print_arguments',
+]
 
 class User(object):
     __slots__ = [           # this saves memory
@@ -323,12 +333,6 @@ def check_arguments(args):
     if args.info_binary:
         shape = (args.num_steps + args.num_transient_steps,)
         args.info_array = arrayfile(args.info_file, shape, args.info_dty_descr)
-
-__all__ = [
-        'make_parser',
-        'check_arguments',
-        'print_arguments',
-]
 
 if __name__ == '__main__':
     parser = make_parser()
