@@ -1,16 +1,14 @@
-#!/usr/bin/env python
 # coding=utf-8
-
-'''
-reads a sequence of jobs from stdin and executes them on the cluster. jobs are
-command lines that are executed in workers
-'''
-
-# file: jobs.py
+# file: cluster.py
 # vim:ts=8:sw=4:sts=4
+
+# TODO <Thu Dec  2 13:07:36 CET 2010> rename to something like clusterclient,
+# sendtocluster, so that it is clear this script DOES not setup the cluster
+# itself.
 
 import os
 import sys
+import datetime
 from argparse import ArgumentParser, FileType
 from warnings import catch_warnings, simplefilter
 with catch_warnings():
@@ -19,18 +17,29 @@ with catch_warnings():
 
 def execpipe(cmd):
     '''
-    executes a pipe command in subprocesses. Returns (stdout, stderr)
+    Executes a pipeline of commands in a subprocesses. A subset of the pipeline
+    semantics (see man 1 bash) is currently supported, the most simplistic one:
+    
+    CMD  [ | CMD ... ] 
+
+    Piping standard error via the shorthand |& is not supported.
+    Redirection to file descriptors is not supported either.
+    
+    Returns the (stdout, stderr) of the pipeline.
     '''
+    # instead of pushing the global namespace to the workers, we import needed
+    # modules locally
     import subprocess as sp
+    import shlex
     cmdseq = cmd.split('|')
     prev_proc = None
     procs = []
-    for c in cmdseq:
+    for c in map(shlex.split,cmdseq):
         if prev_proc is not None:
-            p = sp.Popen(c.split(), stdin=prev_proc.stdout, stdout=sp.PIPE,
+            p = sp.Popen(c, stdin=prev_proc.stdout, stdout=sp.PIPE,
                     stderr=sp.PIPE)
         else:
-            p = sp.Popen(c.split(), stdout=sp.PIPE, stderr=sp.PIPE)
+            p = sp.Popen(c, stdout=sp.PIPE, stderr=sp.PIPE)
         procs.append(p)
         prev_proc = p
     try:
@@ -40,34 +49,78 @@ def execpipe(cmd):
             raise RuntimeError('process %d failed with return code %d' %
                     (p.pid, p.returncode), cmd)
 
-desc = 'Reads a sequence of jobs from stdin and executes them on a cluster.'
+desc = 'Executes input commands on an IPython.kernel cluster'
 
 def make_parser():
     parser = ArgumentParser(description=desc)
-    parser.add_argument('-t', '--taskclient', action='store_true',
-            help='Turn load-balancing and fault-tolerance on ', default=False)
-    parser.add_argument('-v', '--verbose', action='store_true',
-            help='Print list of commands', default=False)
-    parser.add_argument('-f', '--from-file', dest='input_file',  metavar='file',
-            type=FileType('r'), help='reads jobs list from file',
+    parser.set_defaults(verbose=1)
+    parser.add_argument(
+            '-t',
+            '--taskclient',
+            action='store_true',
+            help='use load-balancing, fault-tolerant mode.',
+            default=False)
+    parser.add_argument(
+            '-v',
+            '--verbose',
+            action='store_const',
+            const=2,
+            help='print list of commands',)
+    parser.add_argument(
+            '-q',
+            '--quiet',
+            action='store_const',
+            const=0,
+            help='suppress all output',
+            dest='verbose')
+    parser.add_argument(
+            '-i',
+            '--input',
+            metavar='FILE',
+            type=FileType('r'),
+            help='reads jobs list from %(metavar)s',
             default=sys.stdin)
-    parser.add_argument('-D', '--debug', action='store_true', default=False,
+    parser.add_argument(
+            '-D',
+            '--debug',
+            action='store_true',
+            default=False,
             help='raise Python exceptions to the console')
-    parser.add_argument('-w','--cwd', metavar='dir', default=os.getcwd(),
-            help='set current working directory of engines to dir')
+    parser.add_argument(
+            '-w',
+            '--cwd',
+            metavar='DIR',
+            default=os.getcwd(),
+            help='set current working directory of engines to %(metavar)s')
+    parser.add_argument(
+            '-d',
+            '--dry-run',
+            action='store_true',
+            help='run as normal except that no command is actually executed')
     return parser
 
-def _setwd(args,client):
+def _setwd(args, client):
     client.execute('import os')
     client.execute('os.chdir(%s)' % repr(args.cwd))
 
+def banner():
+    print '*'*80
+    print datetime.datetime.now()
+    print '*'*80
+
 def main(args):
-    lines = ( l.strip() for l in iter(args.input_file.readline, '') )
+    if args.input.isatty():
+        print >> sys.stderr, 'reading jobs from standard input ...'
+    lines = ( l.strip() for l in iter(args.input.readline, '') )
     cmds = filter(lambda k : len(k), lines)
-    if args.verbose:
+    if args.verbose > 0:
+        banner()
+    if args.verbose > 1:
         for i,c in enumerate(cmds):
-            print '%d) "%s"' % (i,c)
+            print 'JOB %d) %s' % (i,c)
     try:
+        if args.dry_run:
+            return # does not open client interface
         if args.taskclient:
             with catch_warnings():
                 simplefilter('ignore', DeprecationWarning)
@@ -82,6 +135,9 @@ def main(args):
             return mec.map(execpipe, cmds)
     except CompositeError,e:
         e.print_tracebacks()
+    finally:
+        if args.verbose > 0:
+            banner()
 
 if __name__ == '__main__':
     parser = make_parser()
@@ -96,5 +152,5 @@ if __name__ == '__main__':
             name = ty.__name__
             print >> sys.stderr, '\n%s: %s\n' % (name, val)
     finally:
-        if ns.input_file is not sys.stdin:
-            ns.input_file.close()
+        if ns.input is not sys.stdin:
+            ns.input.close()

@@ -29,11 +29,9 @@ def TestCluster():
     def setUpAll(cls):
         cls.ipcluster = subprocess.Popen('ipcluster local -n 2', shell=True)
         time.sleep(1)
-        cls.parser = make_parser()
     @classmethod
     def tearDown(cls):
         cls.ipcluster.send_signal(2)
-    # send touch commands to the cluster
     def setUp(self):
         self.cluster = subprocess.Popen('python cluster.py'.split(), stdin=-1)
     def tearDown(self):
@@ -42,10 +40,12 @@ def TestCluster():
             fn = '/tmp/%d.txt' % i
             if os.exists(fn):
                 os.remove(fn)
+    # send touch commands to the cluster
     def test_cluster(self):
         self.cluster.communicate('touch /tmp/1.txt\ntouch /tmp/2.txt')
         assert os.exists('/tmp/1.txt')
         assert os.exists('/tmp/2.txt')
+    # test execpipe works
     def test_cluster_pipe(self):
         cmds = [ 'echo %(num)d | cat > /tmp/%(num)d.txt' % dict(num=i) for i in
                 xrange(2) ]
