@@ -15,6 +15,7 @@ from time import time
 
 from rand import randwpmf
 from timeutils import si_str
+from myio import arrayfile
 
 def myformatwarning(*args):
     msg = args[0]
@@ -154,34 +155,6 @@ def step_forward(args, prng, users, pages, transient):
             args.info_file.write('%(time)s %(users)s %(pages)s\n' % info)
         args.time += args.time_step
         args.elapsed_steps += 1
-
-def arrayfile(data_file, shape, descr, fortran=False):
-    ''' 
-    returns an array that is memory mapped to an NPY (v1.0) file
-
-    Arguments
-    ---------
-    data_file - a file-like object opened with write mode
-    shape - shape of the ndarray
-    descr - any argument that numpy.dtype() can take
-    fortran - if True, the array uses Fortran data order, otherwise C order
-    '''
-    from numpy.lib.io import format
-    from cStringIO import StringIO
-    header = { 
-        'descr' : descr, 
-        'fortran_order' : fortran, 
-        'shape' : shape
-        }
-    preamble = '\x93NUMPY\x01\x00'
-    data_file.write(preamble)
-    cio = StringIO()
-    format.write_array_header_1_0(cio, header) # write header here first
-    format.write_array_header_1_0(data_file, header) # write header
-    cio.seek(0) 
-    offset = len(preamble) + len(cio.readline()) # get offset 
-    return np.memmap(data_file, dtype=np.dtype(descr), mode='w+', shape=shape,
-            offset=offset)
 
 def simulate(args):
     prng = np.random.RandomState(args.seed)
