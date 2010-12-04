@@ -178,6 +178,14 @@ class Arguments(object):
         return sio.getvalue()
 
 def interaction(args, prng, users, pages, pairs, update_opinions=True):
+    # dt randomly distributes the N edits in the interval
+    #   ( args.time, args.time + args.time_step ]
+    N = len(pairs)
+    dt = prng.rand(N) 
+    if N:
+        dt = dt * (args.time_step/N) 
+    dt = dt.cumsum()
+    inc = 0
     for i, j in pairs:
         u = users[i]
         p = pages[j]
@@ -195,7 +203,8 @@ def interaction(args, prng, users, pages, pairs, update_opinions=True):
                     p.opinion += args.speed * ( u.opinion - p.opinion )
                 elif prng.rand() < args.rollback_prob:
                     p.opinion += args.speed * ( u.opinion - p.opinion )
-            print args.time, u.id, p.id
+            print args.time + dt[inc], u.id, p.id
+            inc += 1
         args.noedits += 1
         users[i] = u
         pages[j] = p
@@ -310,7 +319,7 @@ def make_parser():
             type=np.double,
             default=1.0, 
             metavar='value',
-            help='simulation update time step Δt (in days)' )
+            help='simulation update time step Δt (in days). Avg editing time (conflicts are resolved in FIFO order)' )
     parser.add_argument(
             '-e',
             '--daily-edits',

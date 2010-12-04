@@ -67,12 +67,17 @@ cdef class Page:
         self.id = PAGE_ID_MAX
         PAGE_ID_MAX += 1
 
-cdef interaction(object args, object prng, object users, object pages, object pairs, int update_opinions):
+cdef int interaction(object args, object prng, object users, object pages, object pairs, int update_opinions) except 1:
     cdef User u
     cdef Page p
     cdef double speed = args.speed
     cdef double rollback_prob = args.rollback_prob
     cdef double confidence = args.confidence
+    cdef int N = len(pairs), inc = 0
+    cdef double time = args.time, Tn = 1.
+    cdef cnp.ndarray[cnp.double_t, ndim=1] dt = prng.rand(N)
+    if N:
+        Tn = args.time_step / N
     for i, j in pairs:
         u = users[i]
         p = pages[j]
@@ -90,10 +95,13 @@ cdef interaction(object args, object prng, object users, object pages, object pa
                     p.opinion += speed * ( u.opinion - p.opinion )
                 elif prng.rand() < rollback_prob:
                     p.opinion += speed * ( u.opinion - p.opinion )
-            print args.time, u.id, p.id
-        args.noedits += 1
+            time = time + ( dt[inc] * Tn )
+            print time, u.id, p.id
+            inc += 1
         users[i] = u
         pages[j] = p
+    args.noedits += inc
+    return 0
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -121,7 +129,7 @@ cdef object selection(object args, object prng, object users, object pages):
         already_edited.append(p)
     return res
 
-cdef update(object args, object prng, object users, object pages):
+cdef int update(object args, object prng, object users, object pages) except 1:
     # NOTE < τ > = Δt * p-stop**-1 ==> p-stop = Δt / < τ >
     cdef cnp.ndarray[cnp.double_t] rvs = prng.rand(len(users))
     cdef int removed = 0, idx, i
@@ -138,8 +146,9 @@ cdef update(object args, object prng, object users, object pages):
             args.p_max) for i in xrange(prng.poisson(args.user_input_rate)) ])
     pages.extend([ Page(args, prng, args.const_pop, -1) for i in
             xrange(prng.poisson(args.page_input_rate)) ])
+    return 0
 
-cdef int step_forward(args, prng, users, pages, transient):
+cdef int step_forward(args, prng, users, pages, transient) except -1:
     cdef double dt = args.time_step
     cdef int steps, step
     if transient:
@@ -178,6 +187,7 @@ cpdef simulate(args):
     finally:
         speed = steps / ( time() - start_time )
         print >> sys.stderr, " *** Speed: %g (steps/sec)" % speed
-        activity = args.noedits / (steps * args.time_step )
-        print >> sys.stderr, " *** Activity: %g (edits/simulated day)" % activity
+        if steps:
+            activity = args.noedits / (steps * args.time_step )
+            print >> sys.stderr, " *** Activity: %g (edits/simulated day)" % activity
     return prng, users, pages
