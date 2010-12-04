@@ -12,14 +12,34 @@ def make_parser():
             help='take logarithm of the data')
     parser.add_argument('-b', '--bins', type=int, help='number of bins',
             default=10)
+    parser.add_argument('--edits', action='store_const', dest='func',
+            const=edits, help='plot number of edits')
+    parser.set_defaults(func=lifetime)
     return parser
 
+def edits(data):
+    return data[:,2]
+
+def lifetime(data):
+    return np.diff(data[:,:2])
+
 def main(args):
-    data = np.load(args.data)
+    data = args.func(np.load(args.data))
     if args.log:
         data = np.log(data)
     pp.hist(data, bins=args.bins)
-    pp.xlabel('time (days)')
+    if args.func is lifetime:
+        if args.log:
+            xlabel = r'$\log({\rm time})$ (days)'
+        else:
+            xlabel = r'${\rm time}$ (days)'
+    elif args.log:
+        xlabel = r'$\log({\rm edits})$'
+    else:
+        xlabel = r'${\rm edits}$'
+    pp.xlabel(xlabel, fontsize=14)
+    pp.ylabel(r'${\rm frequency}$', fontsize=14)
+    pp.title('sample size = %d' %len(data))
     pp.draw()
     pp.show()
 
