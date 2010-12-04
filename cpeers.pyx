@@ -126,7 +126,8 @@ cdef update(object args, object prng, object users, object pages):
     cdef cnp.ndarray[cnp.double_t] rvs = prng.rand(len(users))
     cdef int removed = 0, idx, i
     cdef User u
-    cdef double stop_exp = args.stop_exp, p_stop = args.p_stop
+#    cdef double stop_exp = args.stop_exp 
+    cdef p_stop = args.p_stop
     for i in xrange(len(users)):
         idx = i - removed # deleting shrinks the list so need to update idx
         u = <User> users[idx]
@@ -138,7 +139,7 @@ cdef update(object args, object prng, object users, object pages):
     pages.extend([ Page(args, prng, args.const_pop, -1) for i in
             xrange(prng.poisson(args.page_input_rate)) ])
 
-cdef step_forward(args, prng, users, pages, transient):
+cdef int step_forward(args, prng, users, pages, transient):
     cdef double dt = args.time_step
     cdef int steps, step
     if transient:
@@ -159,9 +160,10 @@ cdef step_forward(args, prng, users, pages, transient):
             info['pages'] = len(pages)
             args.info_file.write('%(time)s %(users)s %(pages)s\n' % info)
         args.time += args.time_step
-        args.elapsed_steps += 1
+    return step+1
 
 cpdef simulate(args):
+    cdef int steps = 0
     prng = np.random.RandomState(args.seed)
     users = [ User(args, prng, args.const_succ, args.const_succ, prng.rand(),
             args.p_max) for i in xrange(args.num_users) ]
@@ -169,14 +171,13 @@ cpdef simulate(args):
             xrange(args.num_pages) ] 
     args.time = 0.0
     start_time = time()
-    args.elapsed_steps = 0
     args.noedits = 0
     try:
         step_forward(args, prng, users, pages, 1) # don't output anything
-        step_forward(args, prng, users, pages, 0) # actual simulation output
+        steps = step_forward(args, prng, users, pages, 0) # actual simulation output
     finally:
-        speed = args.elapsed_steps / ( time() - start_time )
-        activity = args.noedits / (args.elapsed_steps * args.time_step )
+        speed = steps / ( time() - start_time )
         print >> sys.stderr, " *** Speed: %g (steps/sec)" % speed
+        activity = args.noedits / (steps * args.time_step )
         print >> sys.stderr, " *** Activity: %g (edits/simulated day)" % activity
     return prng, users, pages

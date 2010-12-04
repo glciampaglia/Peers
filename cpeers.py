@@ -9,8 +9,8 @@ if __name__ == '__main__':
     parser = make_parser()
     ns = parser.parse_args()
     try:
-        check_arguments(ns)
-        print_arguments(ns)
+        ns = Arguments(ns) # will check argument values here
+        print >> sys.stderr, ns
         if not ns.dry_run:
             if ns.profile:
                 import pstats, cProfile
