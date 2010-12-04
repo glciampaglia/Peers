@@ -16,8 +16,10 @@ def main(args):
     data = np.asarray(lt.values())
     # filter out users with less edits than min_edits
     data = data[data[:,2] >= args.min_edits]
-    if args.lifetime:
+    if args.lifetime or args.log_lifetime:
         data = np.diff(data[:,:2], axis=1)
+        if args.log_lifetime:
+            data = np.log(data)
     np.save(args.output_file, data)
     return lt
 
@@ -26,7 +28,9 @@ def make_parser():
     parser.add_argument('output_file', type=FileType('w'), help='output file', 
             metavar='output')
     parser.add_argument('-l','--lifetime', action='store_true',
-            help='output lifetime data', default=False)
+            help='output lifetime data')
+    parser.add_argument('-L','--log-lifetime', action='store_true',
+            help='output log-lifetime data')
     parser.add_argument('-m', '--min-edits', type=int, default=2, metavar='num',
             help='filter out users with less edits than num (default 2)')
     return parser
