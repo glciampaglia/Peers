@@ -1,10 +1,6 @@
 # coding=utf-8
-# file: cluster.py
+# file: pexec.py
 # vim:ts=8:sw=4:sts=4
-
-# TODO <Thu Dec  2 13:07:36 CET 2010> rename to something like clusterclient,
-# sendtocluster, so that it is clear this script DOES not setup the cluster
-# itself.
 
 import os
 import sys
@@ -15,39 +11,14 @@ with catch_warnings():
     simplefilter('ignore', DeprecationWarning)
     from IPython.kernel.client import MultiEngineClient, TaskClient, CompositeError
 
-def execpipe(cmd):
+def execcmd(cmd):
     '''
-    Executes a pipeline of commands in a subprocesses. A subset of the pipeline
-    semantics (see man 1 bash) is currently supported, the most simplistic one:
-    
-    CMD  [ | CMD ... ] 
-
-    Piping standard error via the shorthand |& is not supported.
-    Redirection to file descriptors is not supported either.
-    
-    Returns the (stdout, stderr) of the pipeline.
+    Worker's function. Executes cmd in a subshell. Returns exit code from the
+    subshell.
     '''
-    # instead of pushing the global namespace to the workers, we import needed
-    # modules locally
-    import subprocess as sp
-    import shlex
-    cmdseq = cmd.split('|')
-    prev_proc = None
-    procs = []
-    for c in map(shlex.split,cmdseq):
-        if prev_proc is not None:
-            p = sp.Popen(c, stdin=prev_proc.stdout, stdout=sp.PIPE,
-                    stderr=sp.PIPE)
-        else:
-            p = sp.Popen(c, stdout=sp.PIPE, stderr=sp.PIPE)
-        procs.append(p)
-        prev_proc = p
-    try:
-        return p.communicate()
-    finally:
-        if p.returncode != 0:
-            raise RuntimeError('process %d failed with return code %d' %
-                    (p.pid, p.returncode), cmd)
+    # since we are on the worker, we must import modules locally
+    import subprocess as sp  
+    return sp.call(cmd, shell=True)
 
 desc = 'Executes input commands on an IPython.kernel cluster'
 
@@ -110,7 +81,7 @@ def banner():
 
 def main(args):
     if args.input.isatty():
-        print >> sys.stderr, 'reading jobs from standard input ...'
+        print >> sys.stderr, 'Reading from terminal. Press ^D to finish.'
     lines = ( l.strip() for l in iter(args.input.readline, '') )
     cmds = filter(lambda k : len(k), lines)
     if args.verbose > 0:
@@ -126,13 +97,13 @@ def main(args):
                 simplefilter('ignore', DeprecationWarning)
                 tc = TaskClient()
             _setwd(args, tc)
-            return tc.map(execpipe, cmds)
+            return tc.map(execcmd, cmds)
         else:
             with catch_warnings():
                 simplefilter('ignore', DeprecationWarning)
                 mec = MultiEngineClient()
             _setwd(args,mec)
-            return mec.map(execpipe, cmds)
+            return mec.map(execcmd, cmds)
     except CompositeError,e:
         e.print_tracebacks()
     finally:
