@@ -10,7 +10,8 @@ if __name__ == '__main__':
     ns = parser.parse_args()
     try:
         ns = Arguments(ns) # will check argument values here
-        print >> sys.stderr, ns
+        if ns.verbosity > 1:
+            print >> sys.stderr, ns
         if not ns.dry_run:
             if ns.profile:
                 import pstats, cProfile
