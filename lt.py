@@ -6,7 +6,7 @@ import numpy as np
 
 def main(args):
     lt = {}
-    for line in iter(sys.stdin.readline, ''):
+    for line in iter(args.input.readline, ''):
         time, user, page = map(float,line.strip().split())
         try:
             start, stop, edits = lt[user]
@@ -23,15 +23,20 @@ def main(args):
     np.save(args.output_file, data)
     return lt
 
+desc='User lifetime. Reads a stream of user/page interactions and outputs the '\
+        'times of first and last edit.'
+
 def make_parser():
-    parser = ArgumentParser(fromfile_prefix_chars='@')
-    parser.add_argument('output_file', type=FileType('w'), help='output file', 
-            metavar='output')
+    parser = ArgumentParser(fromfile_prefix_chars='@', description=desc)
+    parser.add_argument('output_file', type=FileType('w'), help='output file '\
+            '(- for standard output)', metavar='output')
+    parser.add_argument('-i', '--input', type=FileType('r'), default='-',
+            help='read data from %(metavar)s (default: standard input).')
     parser.add_argument('-l','--lifetime', action='store_true',
-            help='output lifetime data')
+            help='output user lifetime')
     parser.add_argument('-L','--log-lifetime', action='store_true',
-            help='output log-lifetime data')
-    parser.add_argument('-m', '--min-edits', type=int, default=2, metavar='num',
+            help='output user log-lifetime')
+    parser.add_argument('-m', '--min-edits', type=int, default=2, metavar='NUM',
             help='filter out users with less edits than num (default 2)')
     return parser
 
