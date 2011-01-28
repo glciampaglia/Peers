@@ -13,14 +13,17 @@ def main(args):
             lt[user] = (start, time, edits+1)
         except KeyError:
             lt[user] = (time, -1, 1)
-    data = np.asarray(lt.values())
-    # filter out users with less edits than min_edits
-    data = data[data[:,2] >= args.min_edits]
-    if args.lifetime or args.log_lifetime:
-        data = np.diff(data[:,:2], axis=1)
-        if args.log_lifetime:
-            data = np.log(data)
-    np.save(args.output_file, data)
+    if len(lt) > 0:
+        data = np.asarray(lt.values())
+        # filter out users with less edits than min_edits
+        data = data[data[:,2] >= args.min_edits]
+        if args.lifetime or args.log_lifetime:
+            data = np.diff(data[:,:2], axis=1)
+            if args.log_lifetime:
+                data = np.log(data)
+        np.save(args.output_file, data)
+    else:
+        np.save(args.output_file, [])
     return lt
 
 desc='User lifetime. Reads a stream of user/page interactions and outputs the '\
