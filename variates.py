@@ -81,7 +81,8 @@ def make_parser():
     return parser
 
 def main(args):
-    points = [ tuple(map(float, line.strip().split(','))) for line in args.input]
+    linesiter = iter(args.input.readline,'')
+    points = [ tuple(map(float, line.strip().split(','))) for line in linesiter ]
     points = sorted(points * args.repetitions)
     index = []
     data = []
