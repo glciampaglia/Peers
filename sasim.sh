@@ -5,8 +5,10 @@
 size=50 # sample size
 reps=3 # repetitions
 
-# order is: daily_edits, daily_users, daily_pages, confidence, speed, const_succ,
-# const_pop, rollback_prob
+order=(daily_edits, daily_users, daily_pages, confidence, speed, const_succ,
+ const_pop, rollback_prob)
+
+echo ${order[@]} | sed -e 's/ /,/g' > params.txt
 
 python lhd.py -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
     -i 0 1 $size 8 > sample.txt
