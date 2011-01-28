@@ -35,7 +35,7 @@ then
     echo "ipcluster($PID) did not terminate. Stop it manually."
 fi
 
-seq 0 $(($size*$rep-1)) | sed -e's/.*/out_&.npy' > /tmp/index.txt
+seq 0 $(($size*$reps-1)) | sed -e's/.*/out_&.npy/' > /tmp/index.txt
 
 rep_script=$(cat <<EOF
 import sys
