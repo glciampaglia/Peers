@@ -8,6 +8,7 @@ Author: Giovanni Luca Ciampaglia <ciampagg@usi.ch>
 
 from __future__ import division
 from argparse import ArgumentParser, FileType
+from datetime import datetime
 import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as pp
@@ -50,7 +51,7 @@ def pcc(x,y,z):
     k = len(z)
     ddof = n - 2 - k
     t = rho * np.sqrt(ddof / (1 - rho ** 2))
-    pval = 1 - st.t.cdf(np.abs(t), ddof)
+    pval = 2*(1 - st.t.cdf(np.abs(t), ddof)) # two-tailed p-value
     return rho, t, pval, ddof
 
 def print_pcc(results):
@@ -63,6 +64,8 @@ def print_pcc(results):
                 stderr=sp.PIPE).communicate()[0].strip().split(' '))
     except:
         h,w = 45,85
+    print 'Date: %s' % datetime.now()
+    print 'Method: partial correlations' 
     print '-'*w
     names = results.keys()
     name_cols_width = max(map(len, names)) + 2
