@@ -1,19 +1,85 @@
+'''
+Computes sensitivity indices via partial correlation coefficients of each model
+parameter on model response and plots scatter plots of each parameter vs
+response.
+
+Author: Giovanni Luca Ciampaglia <ciampagg@usi.ch>
+'''
+
 from __future__ import division
 from argparse import ArgumentParser, FileType
 import numpy as np
+import scipy.stats as st
 import matplotlib.pyplot as pp
 
 def pcc(x,y,z):
     '''
+    Computes partial correlation coefficient between x and y, given
+    variables in z. This is the cosine of the angle between the vectors of
+    residuals obtain from regressing separately x and y on the control (or
+    confounding) variables in z. The vector of residuals lie in the hyperplane
+    orthogonal to z.
+
+    Parameters
+    ----------
     x,y - (N,) arrays of variables
     z   - (M,N) array of M confounding variables
 
-    Computes the partial correlation coefficient between x and y, given z
+    Returns
+    -------
+    rho  - the partial correlation coefficient
+    t    - the value of the t statistic. Under the null hypothesis that rho = 0
+           this is quantity is approximately t-distributed
+    pval - the p-value under the null hypothesis
+    ddof - number of degrees of freedom
+
+    References
+    ----------
+    * Wikipedia - Partial Correlation Coefficient - http://en.wikipedia.org/wiki/Partial_correlation
+    * From the Penn. State Univ. STAT 505 online course notes - http://www.stat.psu.edu/online/courses/stat505/07_partcor/06_partcor_partial.html 
     '''
+    # First find an orthonormal basis for the space spanned by vectors of z.
+    # Hat tip to R. Kern and G. Varoquax for QR decomposition. See here:
+    # http://thread.gmane.org/gmane.comp.python.numeric.general/35633 
     zorth = np.linalg.qr(z.T)[0].T
+    # then compute residuals of regression of x respectively y on z 
     x = x - np.dot(np.dot(zorth, x), zorth)
     y = y - np.dot(np.dot(zorth, y), zorth)
-    return np.dot(x,y)/np.sqrt(np.dot(x,x) * np.dot(y,y))
+    rho = np.dot(x,y)/np.sqrt(np.dot(x,x) * np.dot(y,y))
+    n = len(x)
+    k = len(z)
+    ddof = n - 2 - k
+    t = rho * np.sqrt(ddof / (1 - rho ** 2))
+    pval = 1 - st.t.cdf(np.abs(t), ddof)
+    return rho, t, pval, ddof
+
+def print_pcc(results):
+    '''
+    pretty-prints results in a table
+    '''
+    import subprocess as sp
+    try:
+        h,w = map(int, sp.Popen('stty size'.split(), stdout=sp.PIPE,
+                stderr=sp.PIPE).communicate()[0].strip().split(' '))
+    except:
+        h,w = 45,85
+    print '-'*w
+    names = results.keys()
+    name_cols_width = max(map(len, names)) + 2
+    header = [' '*name_cols_width, 'rho', 't', 'p-value', 'ddof']
+    cols_width = int(np.floor((w - name_cols_width) / 4))
+    for i in xrange(1,len(header)):
+        header[i] = header[i].center(cols_width)
+    print ''.join(header)
+    print '-'*w
+    for name, values in sorted(results.items(), key=lambda k : k[0]):
+        rho, t, pval, ddof = values
+        row = []
+        row.append(name.rjust(name_cols_width))
+        for val in values:
+            row.append(('%.5g' % val).center(cols_width))
+        print ''.join(row)
+    print '-'*w
 
 def main(args):
     data = np.loadtxt(args.data, delimiter=args.delimiter)
@@ -41,7 +107,8 @@ def main(args):
         for i,x in enumerate(X.T):
             ax = pp.subplot(args.rows,args.cols,i+1)
             ax.scatter(x,y,c='w')
-    # set titles
+    # set titles, compute partial correlation coefficients
+    pcc_results = {}
     if args.params_file is not None:
         args.params = args.params_file.readline().strip().split(',')
         for i in xrange(d):
@@ -49,12 +116,13 @@ def main(args):
             ax.set_title(args.params[i].replace('_',' ').capitalize())
             idx = range(d)
             del idx[i]
-            print '%s,%g' % (args.params[i], pcc(X[:,i], y, X[:,idx].T))
+            pcc_results[args.params[i]] = pcc(X[:,i], y, X[:,idx].T) 
     else:
         for i in xrange(d):
             idx = range(d)
             del idx[i]
-            print pcc(X[:,i],y,z[:,idx].T)
+            pcc_results['param-%d' % i] = pcc(X[:,i],y,X[:,idx].T)
+    print_pcc(pcc_results)
     # set ticks on x/y axis, y label only on first plot
     for i in xrange(d):
         ax = fig.axes[i]
@@ -72,8 +140,8 @@ def main(args):
     pp.show()
 
 def make_parser():
-    parser = ArgumentParser(description='plots scatters of data on parameter '\
-            'values.')
+    parser = ArgumentParser(description='plots scatters of model response vs '\
+            'parameter value and computes partial correlation coefficient')
     parser.add_argument('data', type=FileType('r'), metavar='FILE', help='data'\
             ' file')
     parser.add_argument('-p', '--parameters', type=FileType('r'), help='set '\
