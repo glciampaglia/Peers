@@ -1,7 +1,13 @@
 ''' winding stairs sampling '''
 
 import numpy as np
+import matplotlib.pyplot as pp
 from argparse import ArgumentParser, FileType, Action
+
+def plot(arr):
+    pp.plot(arr[:,0], arr[:,1], '-o')
+    pp.draw()
+    pp.show()
 
 def windindex(n,d):
     '''
@@ -50,8 +56,11 @@ def main(args):
     for l, h in args.intervals:
         sample.append(np.random.uniform(l, h, size=args.size))
     sample = np.asarray(sample).T
-    for p in winding(sample):
+    wsample = np.asarray(list(winding(sample)))
+    for p in wsample:
         print args.sep.join(map(str,p))
+    if args.plot:
+        plot(wsample)
 
 class Append(Action):
     def __call__(self, parser, ns, values, option_string=None):
@@ -70,6 +79,7 @@ if __name__ == '__main__':
             'this option more than once.')
     parser.add_argument('-d', '--delimiter', dest='sep', default=',', 
             metavar='CHAR', help='output fields are separated by %(metavar)s')
+    parser.add_argument('-p', '--plot', action='store_true', help='plot sample')
     ns = parser.parse_args()
     if len(ns.intervals) == 0 and ns.dim is None:
         parser.error('you must either specify the dimension or the intervals.')
