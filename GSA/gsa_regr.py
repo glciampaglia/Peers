@@ -21,8 +21,8 @@ def main(args):
         x = data[:,:-1]
         y = data[:,-1]
         ye = None
-    x = x/x.std(axis=0)
-    y = y/y.std()
+    x = (x - x.mean(axis=0))/x.std(axis=0)
+    y = (y - y.mean())/y.std()
     res = sm.GLS(y, x).fit()
     print res.summary(xname=args.params)
 
