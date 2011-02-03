@@ -1,16 +1,18 @@
 #!/bin/bash
 
-# SAsim.sh - simulation for sensitivity analysis
+# sasim.sh - simulation for sensitivity analysis
 
 size=50 # sample size
 reps=3 # repetitions
 
-order=(daily_edits, daily_users, daily_pages, confidence, speed, const_succ,
- const_pop, rollback_prob)
+order=(daily_edits daily_users daily_pages confidence speed const_succ
+ const_pop rollback_prob)
 
 echo ${order[@]} | sed -e 's/ /,/g' > params.txt
 
-python lhd.py -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
+# python lhd.py -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
+#     -i 0 1 $size 8 > sample.txt
+python winding.py -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
     -i 0 1 $size 8 > sample.txt
 
 options="-e %(e)g -U %(U)g -P %(P)g -c %(c)g -s %(s)g --const-succ %(cs)g --const-pop %(cp)g --rollback-prob %(rp)g"
@@ -26,12 +28,12 @@ ind_cmd="echo out_%(count)s.npy >> /tmp/index.txt"
 # With IPython Kernel
 #ipcluster ssh --clusterfile cluster_conf.py 2>&1 >cluster.log &
 ipcluster local -n 2 2>&1 >cluster.log &
-PID=$?
+PID=$!
 echo -n "Waiting for ipcluster($PID) to start..."
 sleep 6
 python jobs.py -r $reps "$sim_cmd | $lt_cmd" < sample.txt | python pexec.py -v
 kill -2 $PID
-sleep 1
+sleep 2
 if [[ -n $(ps ax | grep $PID) ]]
 then
     echo "ipcluster($PID) did not terminate. Stop it manually."
