@@ -15,7 +15,7 @@ echo ${order[@]} | sed -e 's/ /,/g' > params.txt
 python winding.py -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
     -i 0 1 $size 8 > sample.txt
 
-options="-e %(e)g -U %(U)g -P %(P)g -c %(c)g -s %(s)g --const-succ %(cs)g --const-pop %(cp)g --rollback-prob %(rp)g"
+options="-e %(e)g -U %(U)g -P %(P)g -c %(c)g -s %(s)g --const-succ %(cs)d --const-pop %(cp)d --rollback-prob %(rp)g"
 step=$(echo 1/24|bc -l)
 sim_cmd="python cpeers.py $options -T 1 -t $step 1"
 lt_cmd="python lt.py -l out_%(count)s.npy"
