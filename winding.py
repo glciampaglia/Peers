@@ -1,66 +1,49 @@
 ''' winding stairs sampling '''
 
 import numpy as np
-import matplotlib.pyplot as pp
 from argparse import ArgumentParser, FileType, Action
 
-def plot(arr):
-    pp.plot(arr[:,0], arr[:,1], '-o')
-    pp.draw()
-    pp.show()
-
-def windindex(n,d):
+def winditer(rows, dims, prng=np.random):
     '''
-    returns an iterator over a sequence of indices of a winding stairs matrix
-    for a sample of n observations of d variables.
+    Returns an iterator over a winding stairs design sample, with U[0,1]
+    marginal distributions. 
 
     Parameters
     ----------
-    n, d - shape of the matrix
+    rows - number of rows of the winding stairs matrix
+    dims - number of parameters
     '''
-    idx = np.ndindex(n,d)
-    for i in xrange(n):
-        item = [ idx.next() for j in xrange(d) ]
-        yield zip(*item)
-        for j in xrange(1,d):
-            new_item = list(item)
-            k = new_item[j]
-            if k[0]+1 < n:
-                new_item[j] = k[0]+1, k[1]
-                item = new_item
-                yield zip(*new_item)
-            else:
-                raise StopIteration
+    r = prng.uniform(size=dims)
+    yield tuple(r)
+    for i in xrange(1,rows*dims):
+        k = i % dims
+        r[k] = prng.uniform()
+        yield tuple(r)
 
-def winding(arr):
+def wsinputs(rows, dims, intervals=None, prng=np.random):
     '''
-    Takes a sample of d model input variables of size n and returns an iterator
-    over the winding stairs matrix of the sample
-
-    Parameters
-    ----------
-    arr - input sample
+    Returns a rows x dims x dims array of inputs of a winding stairs design
     '''
-    arr = np.atleast_2d(arr)
-    if arr.ndim > 2:
-        raise ValueError('arr.ndim > 2')
-    for ii, jj in windindex(*arr.shape):
-        yield arr[ii,jj]
+    ws = np.array(list(winditer(rows, dims, prng)))
+    ws = ws.reshape((rows, dims, dims))
+    if intervals is not None:
+        ws = ws * np.diff(intervals, axis=0) + intervals[0]
+    return ws
 
 def main(args):
-    if args.dim is None:
-        args.dim = len(args.intervals)
-    for i in xrange(args.dim - len(args.intervals)):
+    args.prng = np.random.RandomState(args.seed)
+    if args.dims is None:
+        args.dims = len(args.intervals)
+    for i in xrange(args.dims - len(args.intervals)):
         args.intervals.append((0.,1.))
-    sample = []
-    for l, h in args.intervals:
-        sample.append(np.random.uniform(l, h, size=args.size))
-    sample = np.asarray(sample).T
-    wsample = np.asarray(list(winding(sample)))
-    for p in wsample:
-        print args.sep.join(map(str,p))
-    if args.plot:
-        plot(wsample)
+    args.intervals = np.array(args.intervals).T
+    ws = wsinputs(args.rows, args.dims, args.intervals, args.prng)
+    if args.binary_file is not None:
+        np.save(args.binary_file, ws)
+    else:
+        for r in xrange(args.rows):
+            for d in xrange(args.dims):
+                print args.sep.join(map(str,ws[r,d]))
 
 class Append(Action):
     def __call__(self, parser, ns, values, option_string=None):
@@ -70,17 +53,22 @@ class Append(Action):
         getattr(ns, self.dest).append((a, b))
 
 if __name__ == '__main__':
-    parser = ArgumentParser(description='winding stairs sampling.')
-    parser.add_argument('size', help='sample size', type=int)
-    parser.add_argument('dim', help='sample dimension', type=int, nargs='?')
+    parser = ArgumentParser(description='winding stairs sampling.', epilog='by '
+            'default, prints tuple of inputs to standard output')
+    parser.add_argument('rows', help='number of rows', type=int)
+    parser.add_argument('dims', help='number of variables', type=int, nargs='?')
+    parser.add_argument('-s','--seed', help='random number generator\'s seed', 
+            type=int)
     parser.add_argument('-i', '--interval', nargs=2, type=float, action=Append,
             dest='intervals', metavar='VALUE', default=[], help='set '
-            'bounds of i-th parameter to (VALUE, VALUE). NOTE: You can pass '
-            'this option more than once.')
+            'the n-th parameter to have values in interval (VALUE, VALUE). '
+            'NOTE: You can pass this option more than once.')
     parser.add_argument('-d', '--delimiter', dest='sep', default=',', 
             metavar='CHAR', help='output fields are separated by %(metavar)s')
-    parser.add_argument('-p', '--plot', action='store_true', help='plot sample')
+    parser.add_argument('-b', '--binary', dest='binary_file', help='produce '
+            'a binary NPY file instead of writing to standard output',
+            type=FileType('w'), metavar='FILE')
     ns = parser.parse_args()
-    if len(ns.intervals) == 0 and ns.dim is None:
+    if len(ns.intervals) == 0 and ns.dims is None:
         parser.error('you must either specify the dimension or the intervals.')
     main(ns)
