@@ -331,7 +331,9 @@ class Arguments(object):
         if self.num_pages < 0:
             raise ValueError('num_pages cannot be negative (-p/--num-pages)')
         if self.const_succ < 0:
-            raise ValueError('const_succ cannot be negative (--const_succ)')
+            raise ValueError('const_succ cannot be negative (--const-succ)')
+        if self.const_pop <= 0:
+            raise ValueError('const_pop must be positive (--const-pop)')
         if self.daily_users < 0:
             raise ValueError('user_input_rate cannot be negative '\
                     '(-U/--daily-users)')
@@ -380,7 +382,7 @@ class Arguments(object):
         print >> sio, '\tBase life: %g (days)' % self.base_life
         print >> sio, 'PAGES.\tInitial: %d (pages).\tIn-rate: %g (pages/day).' % (
                 self.num_pages, self.daily_pages)
-        print >> sio, 'PAIRS.\tBase success: %d.\tBase popularity: %d.'\
+        print >> sio, 'PAIRS.\tBase success: %g.\tBase popularity: %g.'\
                 % (self.const_succ, self.const_pop)
         print >> sio, 'EDITS.\tConfidence: %g.\tSpeed: %g.\t\tRollback-prob.: %g.'\
                 % (self.confidence, self.speed, self.rollback_prob)
@@ -490,13 +492,13 @@ def make_parser():
     parser.add_argument(
             '--const-succ',
             metavar='EDITS',
-            type=int,
+            type=float,
             default=1,
             help='user baseline success constant term')
     parser.add_argument(
             '--const-pop',
             metavar='EDITS',
-            type=int,
+            type=float,
             default=1,
             help='page baseline popularity constant term')
     parser.add_argument(
