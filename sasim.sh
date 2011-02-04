@@ -50,6 +50,16 @@ EOF
 )
 python -c "$rep_script" < sample.txt > /tmp/sample.txt
 paste -d, /tmp/sample.txt /tmp/index.txt > index.txt
-tar cvfz out.tar.gz out*npy sample.txt index.txt params.txt
 rm -f /tmp/{index,sample}.txt
+tar cvfz out.tar.gz out*npy sample.txt index.txt params.txt &>/dev/null
+TAR_ESTAT=$?
+if [[ $TAR_ESTAT = 0 ]]
+then
+    echo "All files compressed. Removing intermediate files."
+    rm -f out*.npy {sample,index,params}.txt
+    echo "Simulation output stored in out.tar.gz."
+else
+    echo "Error: tar exited with status $TAR_ESTAT."
+    echo "No intermediate file has been removed."
+fi
 
