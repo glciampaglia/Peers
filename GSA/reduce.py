@@ -12,7 +12,11 @@ def main(args):
     for k, subiter in groupby(liter, lambda k : k[:-1]):
         lt = []
         for fn in ( os.path.join(args.directory, s[-1]) for s in subiter ):
-            lt.append(np.load(fn).mean())
+            d = np.load(fn)
+            if len(d):
+                lt.append(d.mean())
+        if len(lt) == 0:
+            lt = [ 0. ]
         if args.standard_error:
             out = k + (np.mean(lt), np.std(lt)/np.sqrt(len(lt)))
         else:
