@@ -17,6 +17,8 @@ def main(args):
                 lt.append(d.mean())
         if len(lt) == 0:
             lt = [ 0. ]
+            if args.verbose:
+                print >> sys.stderr, 'NO DATA: %s' % ','.join(map(str,k))
         if args.standard_error:
             out = k + (np.mean(lt), np.std(lt)/np.sqrt(len(lt)))
         else:
@@ -32,5 +34,7 @@ if __name__ == '__main__':
             'index lines', dest='sep')
     parser.add_argument('-s', '--standard-error', action='store_true', 
             help='output standard error values')
+    parser.add_argument('-v', '--verbose', action='store_true', help='be '
+            'verbose about empty files')
     ns = parser.parse_args()
     main(ns)
