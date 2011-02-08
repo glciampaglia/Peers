@@ -31,42 +31,48 @@ def main(args):
     main = []
     inter = []
     for i in xrange(d):
-        # The main effect is the squared sum of differences over elements that
-        # are d-1 away on the right and in case of wraparound moving down to the
-        # next row. So it means that for the first parameter the main effect
-        # differences are taken between the first and the last column. For the
-        # second parameter the differences are taken between the second and the
-        # first column (because of the wraparound) and with elements of the
-        # first column shifted by one row.
+        # The main effect is estimated as the total variance minus half of the
+        # average squared difference between elements that are d-1 away on the
+        # right. Moving d-1 elements on the right in the design may cause a
+        # "wraparound" to the next row. This means that for the first parameter
+        # the main effect differences are taken between the first and the last
+        # column, while for the second parameter (and similarly for all the
+        # others) the differences are taken between the second and the first
+        # column and, because of the wraparound, with elements of the first
+        # column shifted by one row.
         ii = (i + d - 1) % d
         if i == 0:
             m = np.mean((y[:, i] - y[:, ii]) ** 2) / 2
         else:
             m = np.mean((y[:-1, i] - y[1:, ii]) ** 2) / 2
         main.append(m)
-        # interaction effect is the squared sum of differences over adjacent
-        # elements, i.e. moving one step on the right and wrapping to the next
-        # column. The first parameter changes first at the end of the first row,
-        # so for this case the differences are computed across one row and the
-        # next, for the first and the last column. The remaining parameters
-        # change already at the first row, so in this case the coefficient of
-        # each parameter is given by the average of the elementwise squared
-        # differences of one column and the one adjacent on its left. 
+        # The interaction effect is half the average squared difference over
+        # elements for which only one parameter value changes. This means that
+        # along the sampling, the elements are adjacent in the sampling, i.e. 
+        # one step on the right and optionally wrapping to the next row. For the
+        # first parameter, the first change of value happens at the end of the
+        # first row, so the differences are computed between elements of the
+        # last and first column, with elements from the first column shifted
+        # down by one row.
+        # For all other parameters, the first change of value happens within
+        # the first row, so in this case the differences are taken over two
+        # adjacent and columns and rows are aligned.  
         if i == 0:
             t = np.mean((y[:-1, -1] - y[1:, 0]) ** 2) / 2
         else:
             t = np.mean((y[:, i - 1] - y[:, i]) ** 2) / 2
         inter.append(t)
-    # total variance is obtained by pooling the variances estimated at each column
+    # The coefficients are just the main/total effects normalized by the total
+    # variance. Within each column, the samples are indipendent, so the total
+    # variance is obtained by pooling the variances estimated along each column
     s = y.var(axis=0, ddof=1).mean()
+    print 'Total variance : %g' % s
     if args.params_file is not None:
         for p,m,t in zip(args.params,main,inter):
             print '%s : %g\t%g' % (p, 1 - m / s, t / s)
     else:
         for m, t in zip(main,inter):
             print '%g\t%g' % (1 - m / s, t / s)
-    print 'total variance : %g' % s
-    return x,y
         
 
 if __name__ == '__main__':
