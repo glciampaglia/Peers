@@ -18,8 +18,10 @@ def load(file, mmap_mode='r'):
         return SimulationsFile(res.zip.fp.name)
     return res
 
-# XXX
 def save(file, name, index, defaults, simulations):
+    '''
+    saves simulation data
+    '''
     arcdict = {}
     arcdict['%s_index' % name] = index
     arcdict['%s_defaults' % name] = defaults

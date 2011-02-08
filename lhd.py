@@ -92,8 +92,6 @@ def lhd(m,n,num=None,ranges=None,prng=np.random,maximin=False):
         else:
             return list(lhd_iter)
 
-description = 'Latin Hypercube Design generation '
-
 class AppendTuple(Action):
     def __call__(self, parser, ns, values, option_string=None):
         option = getattr(ns, self.dest)
@@ -104,7 +102,7 @@ class AppendTuple(Action):
         setattr(ns, self.dest, option)
 
 def make_parser():
-    parser = ArgumentParser()
+    parser = ArgumentParser(description='Latin hypercube sampling')
     parser.add_argument(
             'num',
             metavar='NUM',
