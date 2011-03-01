@@ -46,12 +46,11 @@ def lhd(m,n,num=None,ranges=None,prng=np.random,maximin=False):
 
     Notes
     -----
-      By default, the function returns a list of indices into a grid having m
-    axis, each of dimension n. If m ranges are passed instead, then the
-    coordinates of said centers are returned.
-      If num is not None a list of (lhd, mdist) items is generated with
-    possible duplicates. Ranges can be indifferently specified as either
-    (min,max) or (max,min).
+    By default, the function returns a list of indices into an (m x n) grid.
+    If a list of interval bounds is passed, then their midpoints are returned
+    instead. Multiple designs, together with the corresponding values of the
+    pairwise minimum distance are returned if num is not None. The list may
+    contain duplicate. 
 
     Examples
     --------
@@ -127,7 +126,8 @@ def make_parser():
             type=float,
             action=AppendTuple,
             metavar='VALUE',
-            help='specify interval for i-th dimension',)
+            help='specify interval for i-th dimension. NOTE: can be passed '
+            'multiple times',)
     parser.add_argument(
             '-s',
             '--seed',
