@@ -13,7 +13,7 @@ dailypages=1 # pages/day
 dailyedits=5 # edits/day
 timestep=$(echo 1/24|bc -l) # in days
 simtime=365 # in days
-trantime=7300 # in days
+trantime=365 # in days
 cat > defaults <<EOF
 -b
 $baselife
@@ -41,10 +41,9 @@ sim_cmd="python cpeers.py -e %(e)g @defaults"
 lt_cmd="python lt.py -lL out_%(count)s.npy" # store log-lifetime
 ind_cmd="echo out_%(count)s.npy >> /tmp/index.txt"
 
-trap 
-
 # Launch simulation
 # ipcluster ssh --clusterfile cluster_conf.py 2>&1 >cluster.log &
+rm -f cluster.log &>/dev/null
 ipcluster local -n 2 2>&1 >cluster.log &
 PID=$!
 echo -n "Waiting for ipcluster($PID) to start..."
