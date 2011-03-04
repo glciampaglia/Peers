@@ -1,12 +1,18 @@
 function simulate {
-    if [[ $# != 3 ]] 
+    if [[ $# < 3 ]] 
     then
-        echo "syntax: simulate CMD REPS USESSH"
+        echo "syntax: simulate CMD REPS USESSH [ CPUS ]"
         exit -1
     fi
     cmd=$1
     reps=$2
     usessh=$3
+    if [[ -z $4 ]]
+    then
+        cpus=2
+    else
+        cpus=$4
+    fi
     if [[ ! -e sample.txt ]]
     then
         echo "sample.txt does not exist!"
@@ -20,7 +26,7 @@ function simulate {
         PID=$!
         echo -n "Waiting for ipcluster ssh ($PID) to start..."
     else
-        ipcluster local -n 2 2>&1 >cluster.log &
+        ipcluster local -n $cpus 2>&1 >cluster.log &
         PID=$!
         echo -n "Waiting for ipcluster local ($PID) to start..."
     fi
