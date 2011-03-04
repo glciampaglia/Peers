@@ -78,12 +78,12 @@ cdef int update(object args, object users, object pages, object prng) except 1:
         if rvs[i] <= 1 + ratio(u) * ( p_stop - 1): 
             del users[idx]
             removed += 1
-    new_users = prng.poisson(args.user_input_rate * args.time_step)
+    new_users = prng.poisson(args.daily_users * args.time_step)
     user_opinions = prng.random_sample(new_users)
     users.extend([ User(args.const_succ, args.const_succ, o, args.edit_rate)
             for o in user_opinions ])
     if len(users) > 0:
-        new_pages = prng.poisson(args.page_input_rate * args.time_step)
+        new_pages = prng.poisson(args.daily_pages * args.time_step)
         editing_users = prng.randint(0, len(users), new_pages)
         pages.extend([ Page(args.const_pop, users[i].opinion) for i in
             editing_users])

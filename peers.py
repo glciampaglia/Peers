@@ -96,14 +96,14 @@ def update(args, users, pages, prng=np.random):
             del users[idx]
             removed += 1
     # new users are added with uniformly distributed opinions
-    new_users = prng.poisson(args.user_input_rate * args.time_step)
+    new_users = prng.poisson(args.daily_users * args.time_step)
     user_opinions = prng.random_sample(new_users)
     users.extend([ User(args.const_succ, args.const_succ, o, args.edit_rate) 
             for o in user_opinions ])
     # new pages are added and for each page a user is drawn randomly with
     # replacement as the creator
     if len(users) > 0:
-        new_pages = prng.poisson(args.user_input_rate * args.time_step)
+        new_pages = prng.poisson(args.daily_pages * args.time_step)
         editing_users = prng.randint(0,len(users),new_pages)
         pages.extend([ Page(args.const_pop, users[i].opinion) 
                 for i in editing_users ])
@@ -297,10 +297,6 @@ class Arguments(object):
         assert self.p_stop >= 0 and self.p_stop <= 1, "not a probability"
         self.edit_rate = self.daily_edits
         assert self.edit_rate >= 0, "not a rate"
-        self.user_input_rate = self.daily_users * self.time_step
-        assert self.user_input_rate >= 0, "not a rate"
-        self.page_input_rate = self.daily_pages * self.time_step
-        assert self.page_input_rate >= 0, "not a rate"
         if self.info_binary:
             shape = (self.num_steps + self.num_transient_steps,)
             self.info_array = arrayfile(self.info_file, shape, 
@@ -336,10 +332,10 @@ class Arguments(object):
         if self.const_pop <= 0:
             raise ValueError('const_pop must be positive (--const-pop)')
         if self.daily_users < 0:
-            raise ValueError('user_input_rate cannot be negative '\
+            raise ValueError('daily_users cannot be negative '
                     '(-U/--daily-users)')
         if self.daily_pages < 0:
-            raise ValueError('page_input_rate cannot be negative '\
+            raise ValueError('daily_pages cannot be negative '
                     '(-P/--daily-pages)')
         if self.confidence < 0 or self.confidence > 1:
             raise ValueError('confidence must be in [0,1] (-c/--confidence)')
