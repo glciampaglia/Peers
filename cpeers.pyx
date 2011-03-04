@@ -96,6 +96,7 @@ cdef inline object _intertimes(double l, object u):
         _u[i] = (1.0 - log(_u[i])) / (2.0 * l)
     return _u
 
+# XXX questo metodo non è adatto a simulare gli intertempi se T < 1/l 
 #@cython.boundscheck(False)
 #@cython.wraparound(False)
 cdef object times(double l, double T, object prng):

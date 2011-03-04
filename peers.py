@@ -108,6 +108,7 @@ def update(args, users, pages, prng=np.random):
         pages.extend([ Page(args.const_pop, users[i].opinion) 
                 for i in editing_users ])
 
+# XXX questo metodo non è adatto a simulare gli intertempi se T < 1/l 
 def times(l, T, prng=np.random):
     '''
     Sample times of increments in interval [0, T)
@@ -294,7 +295,7 @@ class Arguments(object):
                 "negative number of transient steps"
         self.p_stop = self.time_step / self.base_life
         assert self.p_stop >= 0 and self.p_stop <= 1, "not a probability"
-        self.edit_rate = self.daily_edits * self.time_step 
+        self.edit_rate = self.daily_edits
         assert self.edit_rate >= 0, "not a rate"
         self.user_input_rate = self.daily_users * self.time_step
         assert self.user_input_rate >= 0, "not a rate"
