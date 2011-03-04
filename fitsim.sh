@@ -3,17 +3,17 @@
 # fitsim.sh - simulation for fitting model
 
 # Simulate each value $reps time, for all $size values.
-size=25 # sample size
-reps=10 # repetitions
+size=2 # sample size
+reps=1 # repetitions
 
 # Fix model parameters
 baselife=100 # in days
-dailyusers=10 # users/day
-dailypages=1 # pages/day
+dailyusers=50 # users/day
+dailypages=10 # pages/day
 dailyedits=5 # edits/day
 timestep=$(echo 1/24|bc -l) # in days
-simtime=365 # in days
-trantime=365 # in days
+simtime=5 # in days
+trantime=5 # in days
 cat > defaults <<EOF
 -b
 $baselife

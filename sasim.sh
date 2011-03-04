@@ -13,7 +13,7 @@ order=(daily_edits daily_users daily_pages confidence speed const_succ
 echo ${order[@]} | sed -e 's/ /,/g' > params.txt
 
 python lhd.py -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
-     -i 0 1 -i 0 7 $size 9 > sample.txt
+     -i 0 1 -i 0 1 $size 9 > sample.txt
 
 # python winding.py -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
 #     -i 0 1 -i 0 7 $size 9 > sample.txt
