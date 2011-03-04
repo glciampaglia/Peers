@@ -17,15 +17,17 @@ function simulate {
     if [[ $usessh = 1 ]]
     then
         ipcluster ssh --clusterfile cluster_conf.py 2>&1 >cluster.log &
+        PID=$!
+        echo -n "Waiting for ipcluster ssh ($PID) to start..."
     else
         ipcluster local -n 2 2>&1 >cluster.log &
+        PID=$!
+        echo -n "Waiting for ipcluster local ($PID) to start..."
     fi
-    PID=$!
-    echo -n "Waiting for ipcluster($PID) to start..."
     sleep 5
     python jobs.py -r $reps "$cmd" < sample.txt | python pexec.py -v
     kill -2 $PID
-    sleep 2
+    sleep 5
     kill -CONT $PID &>/dev/null # if kill returns 0 then process is still alive
     if [[ $? = 0 ]]
     then

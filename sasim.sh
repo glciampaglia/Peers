@@ -16,7 +16,7 @@ python lhd.py -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
      -i 0 1 -i 0 1 $size 9 > sample.txt
 
 # python winding.py -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
-#     -i 0 1 -i 0 7 $size 9 > sample.txt
+#     -i 0 1 -i 0 1 $size 9 > sample.txt
 # size=$(($size*${#order[@]})) # needed for the winding sampling
 
 options="-e %(e)g -U %(U)g -P %(P)g -c %(c)g -s %(s)g --const-succ %(cs)g --const-pop %(cp)g --rollback-prob %(rp)g -t %(t)g"
