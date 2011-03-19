@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 
-'''
-GMM reduce script
-'''
+'''Reduction script for Gaussian Mixture Model (GMM) parameter estimation.'''
 
 import os
 import sys
 from itertools import groupby
 from argparse import ArgumentParser, FileType
 import numpy as np
-from scikits.learn import mixture as m
+from scikits.learn.mixture import GMM
 
 def main(args):
     ''' reads index, groups by parameters '''
@@ -21,10 +19,12 @@ def main(args):
         for fn in ( os.path.join(args.directory, s[-1]) for s in subiter ):
             d = np.load(fn)
             if len(d):
-                gmm = m.GMM(args.components)
+                gmm = GMM(args.components)
                 gmm.fit(d)
-                beta.append(np.hstack(map(np.ravel,
-                    [ gmm.means, np.asarray(gmm.covars), gmm.weights ])))
+                mu, si, we = map(np.ravel, 
+                        [gmm.means, np.asarray(gmm.covars), gmm.weights])
+                idx = mu.argsort()
+                beta.append(np.hstack([mu[idx], si[idx], we[idx]]))
         if len(beta) == 0:
             if args.verbose:
                 print >> sys.stderr, 'NO DATA: %s' % ','.join(map(str,k))
@@ -35,16 +35,14 @@ def main(args):
         print fmt % out
 
 if __name__ == '__main__':
-    parser = ArgumentParser(description='Computes Gaussian Mixture Model (GMM) '
-            'parameters')
-    parser.add_argument('index', type=FileType('r'), help='index file')
-    parser.add_argument('components', type=int, help='number of GMM components')
-    parser.add_argument('-C', '--directory', default='.', help='data directory')
-    parser.add_argument('-d', '--delimiter', default=',', help='delimiter of '\
-            'index lines', dest='sep')
-#     parser.add_argument('-s', '--standard-error', action='store_true', 
-#             help='output standard error values')
-    parser.add_argument('-v', '--verbose', action='store_true', help='be '
-            'verbose about empty files')
+    parser = ArgumentParser(description=__doc__)
+    parser.add_argument('index', type=FileType('r'), help='Data files index.')
+    parser.add_argument('components', type=int, help='Number of GMM components.')
+    parser.add_argument('-C', '--directory', default='.', help='Interpret '
+            'file paths in index as relative to %(metavar)s.', metavar='DIR')
+    parser.add_argument('-d', '--delimiter', default=',', help='Data files index'
+            ' has fields separated by %(metavar)s.', dest='sep', metavar='CHAR')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Be '
+            'verbose. Warn when encountering empty data files.')
     ns = parser.parse_args()
     main(ns)

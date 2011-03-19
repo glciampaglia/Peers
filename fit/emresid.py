@@ -7,8 +7,6 @@ residuals of the fitted parameters. As T grows, absolute average residuals
 should go to 0.
 '''
 
-print __doc__
-
 import sys
 import numpy as np
 from scikits.learn.mixture import GMM
@@ -90,7 +88,7 @@ def plot(args, resid):
     pp.show()
 
 if __name__ == '__main__':
-    parser = ArgumentParser(description='Validates EM consistent estimation')
+    parser = ArgumentParser(description=__doc__)
     parser.add_argument('start', type=float, help='sample size start exponent')
     parser.add_argument('num', type=int, help='number of sample sizes')
     parser.add_argument('components', type=int, help='number of GMM components')

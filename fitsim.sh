@@ -37,7 +37,7 @@ step=$(echo 1/$size|bc -l)
 LC_ALL=en seq $step $step 1 > sample.txt # for English locale for decimal sep
 
 # Define simulator commands
-sim_cmd="python cpeers.py -e %(e)g @defaults"
+sim_cmd="python cpeers.py -c %(c)g @defaults"
 lt_cmd="python lt.py -lL out_%(count)s.npy" # store log-lifetime
 ind_cmd="echo out_%(count)s.npy >> /tmp/index.txt"
 
