@@ -7,6 +7,10 @@ import numpy as np
 import scikits.statsmodels as sm
 import matplotlib.pyplot as pp
 
+# TODO <Tue Feb  1 14:57:12 CET 2011> add scatter plots of residuals and
+# predicted values to check to homoscedasticity. Multicollinearity is not a
+# problem due to the experimental design. Plot histograms of residuals?
+
 def main(args):
     data = np.loadtxt(args.input, delimiter=args.sep)
     if args.params_file is not None:

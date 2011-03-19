@@ -7,12 +7,18 @@ Author: Giovanni Luca Ciampaglia <ciampagg@usi.ch>
 '''
 
 from __future__ import division
+import re
 from argparse import ArgumentParser, FileType
 from datetime import datetime
 import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as pp
 
+def fmt(f):
+    return re.search('\.(\w+)$', f.name).group()[1:]
+
+# TODO <Wed Feb  2 10:37:39 CET 2011> compute R^2 of regression of y on {x} U z?
+# It is computed in gsa_regr.py anyways ...
 def pcc(x,y,z):
     '''
     Computes partial correlation coefficient between x and y, given
@@ -24,7 +30,7 @@ def pcc(x,y,z):
     Parameters
     ----------
     x,y - (N,) arrays of variables
-    z   - (M,N) array of M confounding variables
+    z   - (M,N) array of M control variables
 
     Returns
     -------
@@ -139,7 +145,7 @@ def main(args):
             ax.set_ylabel(r'$<\tau>$ (days)',fontsize=14)
     if args.output is not None:
         for out in args.output:
-            pp.savefig(out)
+            pp.savefig(out, format=fmt(args.output.name))
     pp.show()
 
 def make_parser():
