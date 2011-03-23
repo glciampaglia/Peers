@@ -209,7 +209,7 @@ class Arguments(object):
         if self.speed == 0:
             warn('turning off opinion update', category=UserWarning)
     def __str__(self):
-        h,w = ttysize() 
+        h,w = ttysize() or (50, 85)
         sio = StringIO()
         print >> sio, '-'*w
         print >> sio, 'TIME.\tSimulation: %g (days).\tTransient: %g (days).'\
@@ -270,7 +270,7 @@ def make_parser():
             default=1.0, help='base user successes (default: %(default)g)')
     parser.add_argument('--const-pop', metavar='EDITS', type=float,
             default=1.0, help='base page popularity (default: %(default)g)')
-    parser.add_argument('--rollback-prob', metavar='PROB', type=np.double,
+    parser.add_argument('-r', '--rollback-prob', metavar='PROB', type=np.double,
             default=0.5, help='roll-back probability (default: %(default)g)')
 # misc
     parser.add_argument('-d', '--dry-run', action='store_true',

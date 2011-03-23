@@ -10,7 +10,7 @@ def ttysize():
     try:
         return map(int, p.communicate()[0].split())
     except OSError:
-        return (50, 85)
+        pass
 
 _IDS = {}
 
