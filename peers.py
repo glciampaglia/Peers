@@ -17,6 +17,7 @@ from warnings import warn
 from rand import randwpmf
 from myio import arrayfile
 from utils import ttysize, IncIDMixin
+from cpeers import loop as c_loop
 
 class User(IncIDMixin):
     ''' Class for user instances '''
@@ -122,15 +123,22 @@ def simulate(args):
     pages = [ Page(args.const_pop,o) for o in prng.random_sample(args.num_pages) ]
     if args.transient:
         t_transient_start = time()
-        n_transient = loop(0, args.transient, args, users, pages, False, prng)
+        if args.fast:
+            n_transient = c_loop(0, args.transient, args, users, pages, False, prng)
+        else:
+            n_transient = loop(0, args.transient, args, users, pages, False, prng)
         t_transient_stop = time()
         t_transient = t_transient_stop - t_transient_start
         if args.verbosity > 0:
             print >> sys.stderr, 'Transient done in %.2gs (%g events/s)'\
                     % (t_transient, n_transient / t_transient)
     t_sim_start = time()
-    n_sim = loop(args.transient, args.transient + args.time, args, users, pages,
-            True, prng)
+    if args.fast:
+        n_sim = c_loop(args.transient, args.transient + args.time, args, users, 
+                pages, True, prng)
+    else:
+        n_sim = loop(args.transient, args.transient + args.time, args, users, 
+                pages, True, prng)
     t_sim_stop = time()
     t_sim = t_sim_stop - t_sim_start
     if args.verbosity > 0:
@@ -272,6 +280,8 @@ def make_parser():
     parser.add_argument('-i', '--info', type=FileType('w'), help='write '
             'simulation information to %(metavar)s', metavar='FILE',
             dest='info_file')
+    parser.add_argument('--fast', action='store_true', help='Use Cython '
+            'implementation')
 # profiling
     parser.add_argument('--profile', action='store_true', help='run profiling')
     parser.add_argument('--profile-file', metavar='FILE', default=None,

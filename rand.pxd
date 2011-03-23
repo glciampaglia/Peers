@@ -1,3 +1,2 @@
-cimport numpy as cnp 
+cdef inline int _binsearch(double, object, int, int)
 cdef inline object _randwpmf(object, int, object)
-cdef inline int _binsearch(float, object, int, int)

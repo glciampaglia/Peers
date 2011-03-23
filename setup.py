@@ -1,17 +1,7 @@
 from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
-
 from numpy import get_include
-numpy_include = get_include()
-
-ext_rand = Extension("rand",
-        [ "rand.pyx" ],
-        include_dirs=[ numpy_include ])
-
-ext_cpeers = Extension("_cpeers",
-        [ "cpeers.pyx" ],
-        include_dirs=[ numpy_include, '.'])
 
 #import numpy as np
 #from os.path import dirname, join
@@ -25,7 +15,12 @@ ext_cpeers = Extension("_cpeers",
 #        include_dirs=[ numpy_include, numpy_random_include ],
 #        extra_compile_args=['-Winline',])
 
+_includes = [get_include()]
+
 setup(
-        cmdclass = dict(build_ext=build_ext),
-        ext_modules = [ ext_rand, ext_cpeers ]
+        cmdclass = { 'build_ext' : build_ext },
+        ext_modules = [
+            Extension("rand", ["rand.pyx"], include_dirs=_includes), 
+            Extension("cpeers", ["cpeers.pyx"], include_dirs=_includes) 
+        ]
 )
