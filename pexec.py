@@ -89,9 +89,8 @@ def main(args):
         with catch_warnings():
             simplefilter('ignore', DeprecationWarning)
             mec = MultiEngineClient()
-            tc = TaskClient()
         _setwd(args, mec)
-        return tc.map(execcmd, cmds)
+        return mec.map(execcmd, cmds)
     except CompositeError,e:
         e.print_tracebacks()
     finally:
