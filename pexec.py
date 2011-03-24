@@ -26,12 +26,6 @@ def make_parser():
     parser = ArgumentParser(description=desc)
     parser.set_defaults(verbose=1)
     parser.add_argument(
-            '-t',
-            '--taskclient',
-            action='store_true',
-            help='use load-balancing, fault-tolerant mode.',
-            default=False)
-    parser.add_argument(
             '-v',
             '--verbose',
             action='store_const',
@@ -92,18 +86,12 @@ def main(args):
     try:
         if args.dry_run:
             return # does not open client interface
-        if args.taskclient:
-            with catch_warnings():
-                simplefilter('ignore', DeprecationWarning)
-                tc = TaskClient()
-            _setwd(args, tc)
-            return tc.map(execcmd, cmds)
-        else:
-            with catch_warnings():
-                simplefilter('ignore', DeprecationWarning)
-                mec = MultiEngineClient()
-            _setwd(args,mec)
-            return mec.map(execcmd, cmds)
+        with catch_warnings():
+            simplefilter('ignore', DeprecationWarning)
+            mec = MultiEngineClient()
+            tc = TaskClient()
+        _setwd(args, mec)
+        return tc.map(execcmd, cmds)
     except CompositeError,e:
         e.print_tracebacks()
     finally:
