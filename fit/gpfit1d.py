@@ -50,12 +50,12 @@ def plotmodels(x, y, models, innames=None, outnames=None):
         import warnings
         warnings.warn('not enough labels for this plot (max 26).', 
                 category=UserWarning)
+    xmin, xmax = x.min(), x.max()
+    xi = np.linspace(xmin, xmax, 1000)[:,None]
     for i, label in enumerate(uppercase[:M]):
         gp = models[i]
         ax = pp.subplot(rows, cols, i+1)
         ax.plot(x, y[:,i], 'o ', c='k', label='observations')
-        xmin, xmax = x.min(), x.max()
-        xi = np.linspace(xmin, xmax, 1000)[:,None]
         yi, mse = gp.predict(xi, eval_MSE=True)
         ysigma = np.sqrt(mse)
         ax.plot(xi, yi, '-', c='r', label='GP fit')
@@ -69,13 +69,13 @@ def plotmodels(x, y, models, innames=None, outnames=None):
         ax.text(0.05, 0.95, label, transform=ax.transAxes, fontsize=16,
                 fontweight='bold', va='top')
         if innames is not None:
-            pp.xlabel(innames[0], fontsize=14)
+            pp.xlabel(innames[0], fontsize=16)
         else:
-            pp.xlabel('model parameter', fontsize=14)
+            pp.xlabel('model parameter', fontsize=16)
         if outnames is not None:
-            pp.ylabel(outnames[i], fontsize=14)
+            pp.ylabel(outnames[i], fontsize=16)
         else:
-            pp.ylabel('auxiliary parameter %d' % (i + 1), fontsize=14)
+            pp.ylabel('auxiliary parameter %d' % (i + 1), fontsize=16)
     leg_ax = fig.axes[cols-1]
     # XXX is this placement generic w.r.t. figure size?
     leg_ax.legend(bbox_to_anchor=(0, 1.43, 1.025, 0), loc='upper right')

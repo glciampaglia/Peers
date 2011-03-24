@@ -6,6 +6,7 @@ Estimates parameters of a Gaussian Mixture Model (GMM) from input files and
 plots the fit.
 '''
 
+import re
 from os.path import exists, isdir, join, extsep
 import sys
 from argparse import ArgumentParser, Action, FileType
@@ -19,6 +20,9 @@ from scipy.stats import norm
 # - add subplot like in R's histogram function with vertical lines for each
 #   observation. Colors of lines are mapped on the a scale red to blue (or
 #   whatever color is chosen for the density lines of the components.
+
+def fmt(fn):
+    return re.search('\.(\w+)$', fn).group()[1:]
 
 def gmmpdf(x, means, variances, weights):
     res = []
@@ -45,14 +49,13 @@ def plot(fn, data, model, bins, **params):
     pp.xlabel(r'$u = \mathrm{log}(\tau)$ (days)', fontsize=16)
     pp.ylabel(r'Probability Density $p(x)$')
     pp.legend(loc='upper left')
-    fn = extsep.join(fn.split(extsep)[:-1])
     if 'confidence' in params:
         title = r'%s, $\varepsilon = %g$' % (fn, params['confidence'])
     else:
         title = fn
     pp.title(title)
     pp.draw()
-    pp.savefig(fn)
+    pp.savefig(fn, format=fmt(fn))
     pp.close()
 
 def main(args):
@@ -73,7 +76,7 @@ def main(args):
         if len(d):
             gmm = GMM(args.components)
             gmm.fit(d)
-            gfn = extsep.join(fn.split(extsep)[:-1]) + extsep + 'pdf'
+            gfn = extsep.join(fn.split(extsep)[:-1]) + extsep + args.format
             plot(gfn, d, gmm, args.bins, **paramdict)
             if args.verbose:
                 print 
@@ -97,5 +100,7 @@ if __name__ == '__main__':
             'of histogram bins.', default=10)
     parser.add_argument('-n', '--names', type=FileType('r'), help='Parameter '
             'names file', metavar='FILE')
+    parser.add_argument('-f' ,'--format', help='graphic output format (default:'
+            ' %(default)s)', default='pdf')
     ns = parser.parse_args()
     main(ns)

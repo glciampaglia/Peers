@@ -4,8 +4,6 @@
 Performs a parametric plot of input data
 '''
 
-# TODO <Fri Mar 18 15:22:14 CET 2011> move this functionality into gpfit.py
-
 import re
 from argparse import ArgumentParser, FileType
 import numpy as np
@@ -16,14 +14,14 @@ def fmt(f):
 
 def plot(data):
     pp.close('all')
-    f = pp.figure(figsize=(10,4))
+    f = pp.figure(figsize=(12,4))
     pp.subplot(131)
     add_plot(data[1], data[2], r'$\mu_1$', r'$\mu_2$')
     pp.subplot(132)
     add_plot(data[3], data[4], r'$\sigma_1$', r'$\sigma_2$')
     pp.subplot(133)
     add_plot(data[0], data[5], r'$\varepsilon$', r'$\pi_1$')
-#    f.subplots_adjust(left=.05, bottom=.12, right=.97, top=.92, wspace=.25)
+    f.subplots_adjust(left=.05, bottom=.12, right=.97, top=.92, wspace=.25)
     pp.show()
 
 def add_plot(x, y, xlab, ylab, **kwargs):
