@@ -2,6 +2,7 @@
 
 import re
 import numpy as np
+from scikits.learn.gaussian_process import GaussianProcess
 
 def fmt(fn):
     '''
@@ -49,3 +50,36 @@ def rect(x, horizontal=True):
             return h, w
         else:
             return w, h
+
+class SurrogateModel(object):
+    '''
+    A class that evaluates a gaussian model independently for each response
+    variable
+    '''
+    def __init__(self, models):
+        self._models = models
+    @property
+    def models(self):
+        return list(self._models)
+    def __call__(self, X, **kwargs):
+        '''
+        Calls GaussianProcess.predict on each of the GP models of the instance.
+        Additional keyword arguments are passed to it. 
+        '''
+        Y = [ m.predict(X, **kwargs) for m in self._models ]
+        return np.row_stack(Y).T
+    @classmethod
+    def fitGP(cls, X, Y, **kwargs):
+        '''
+        Fits a gaussian process of X to each variable in Y and returns a
+        SurrogateModel instance
+        '''
+        models = []
+        for y in Y.T:
+            gp = GaussianProcess(**kwargs)
+            gp.fit(X, y)
+            models.append(gp)
+        return cls(models)
+    def __repr__(self):
+        return repr(self.models)
+
