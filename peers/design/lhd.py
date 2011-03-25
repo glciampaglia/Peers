@@ -3,7 +3,7 @@
 # file: lhd.py
 # vim:ts=8:sw=4:sts=4
 
-''' Latin Hypercube Designs. © 2010 G.L. Ciampaglia '''
+''' Latin Hypercube Designs. © 2010 Giovanni Luca Ciampaglia '''
 
 import sys
 from argparse import ArgumentParser, Action
