@@ -1,4 +1,7 @@
-''' Post-processing script that computes user lifetime '''
+''' 
+Post-processing script that computes user lifetime. Reads a stream of user/page
+interactions and outputs times of first and last edit. 
+'''
 
 import sys
 from argparse import ArgumentParser, FileType
@@ -26,11 +29,8 @@ def main(args):
         np.save(args.output_file, [])
     return lt
 
-desc='User lifetime. Reads a stream of user/page interactions and outputs the '\
-        'times of first and last edit.'
-
 def make_parser():
-    parser = ArgumentParser(fromfile_prefix_chars='@', description=desc)
+    parser = ArgumentParser(fromfile_prefix_chars='@', description=__doc__)
     parser.add_argument('output_file', type=FileType('w'), help='output file '\
             '(- for standard output)', metavar='output')
     parser.add_argument('-i', '--input', type=FileType('r'), default='-',
