@@ -22,12 +22,30 @@ def winditer(rows, dims, prng=np.random):
 
 def wsinputs(rows, dims, intervals=None, prng=np.random):
     '''
-    Returns a rows x dims x dims array of inputs of a winding stairs design
+    Computes inputs for evaluating a model using a winding stairs matrix.
+
+    Parameters
+    ----------
+    rows      - number of rows in the design
+    dims      - number of input variables
+    intervals - a list of items (xm, xM) of length dims with xm < xM, giving the
+                range of each variable
+
+    Returns
+    -------
+    Returns a rows x dims x dims array of inputs of a winding stairs design,
+    i.e. with rows = 3 and  dims = 3:
+
+    [ (X_11, X_21, X_31), (X_11, X_22, X_31), (X_11, X_22, X_32)
+      (X_12, X_22, X_32), (X_12, X_23, X_32), (X_12, X_23, X_33)
+      (X_13, X_23, X_33), (X_13, X_24, X_33), (X_13, X_24, X_34) ]
+    
+    here X_ij = j-th observation of the i-th variable:
     '''
-    ws = np.array(list(winditer(rows, dims, prng)))
-    ws = ws.reshape((rows, dims, dims))
+    ws = np.array(list(winditer(rows, dims, prng))).reshape((rows, dims, dims))
     if intervals is not None:
-        ws = ws * np.diff(intervals, axis=0) + intervals[0]
+        intervals = np.asarray(intervals)
+        ws = ws * np.diff(intervals, axis=1).T + intervals[:, 0]
     return ws
 
 def main(args):
@@ -37,7 +55,7 @@ def main(args):
     for i in xrange(args.dims - len(args.intervals)):
         args.intervals.append((0.,1.))
     args.intervals = np.array(args.intervals).T
-    ws = wsinputs(args.rows, args.dims, args.intervals, args.prng)
+    W = wsinputs(args.rows, args.dims, args.intervals, args.prng)
     if args.binary_file is not None:
         np.save(args.binary_file, ws)
     else:

@@ -4,6 +4,33 @@ import re
 import numpy as np
 from scikits.learn.gaussian_process import GaussianProcess
 
+def gettxtdata(fn, responses, delimiter=',', with_errors=False, **kwargs):
+    '''
+    Opens a text data file and read data, separating them between
+    input variables X and responses Y. 
+
+    Parameters
+    ----------
+    fn          - file name or file-like object
+    responses   - number of response variables
+    with_errors - if True, each response variable is followed by its standard
+                  errors (returns X,Y,Ye)
+
+    Additional keyword arguments are passed to numpy.loadtxt.
+    '''
+    kwargs['delimiter'] = delimiter
+    data = np.loadtxt(fn, **kwargs)
+    if with_errors:
+        M = responses * 2
+        X = data[:,:-M]
+        Y = data[:,-M::2]
+        Ye = data[:, -M+1::2]
+        return X, Y, Ye
+    else:
+        X = data[:,:-responses]
+        Y = data[:,-responses:]
+        return X, Y
+
 def fmt(fn):
     '''
     Returns the extension of given filename fn
@@ -81,5 +108,5 @@ class SurrogateModel(object):
             models.append(gp)
         return cls(models)
     def __repr__(self):
-        return repr(self.models)
+        return '<SurrogateModel of %s>' % repr(self.models)
 

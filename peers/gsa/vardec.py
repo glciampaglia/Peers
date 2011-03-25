@@ -1,6 +1,15 @@
+''' 
+Computes main and total interaction effect indices using Winding Stairs (WS)
+sampling and a Gaussian Process (GP) emulator
+'''
+
 from argparse import ArgumentParser, FileType
 import numpy as np
 
+from ..design.winding import wsinputs
+from .utils import SurrogateModel, gettxtdata
+
+# TODO: remove
 def makews(data):
     '''
     Produces a "Winding Stairs Matrix"
@@ -19,14 +28,10 @@ def makews(data):
     y = data[:,-1]
     return x.reshape((r,d,d)), y.reshape((r, d))
 
-def main(args):
-    data = np.loadtxt(args.data, delimiter=args.sep)
-    if args.params_file is not None:
-        args.params = args.params_file.readline().strip().split(',')
-    if args.with_error:
-        x,y = makews(data[:,:-1])
-    else:
-        x,y = makews(data)
+def indices(y):
+    '''
+    Computes main and total interaction effect indices out of matrix y
+    '''
     n, d = y.shape
     main = []
     inter = []
@@ -66,26 +71,56 @@ def main(args):
     # variance. Within each column, the samples are indipendent, so the total
     # variance is obtained by pooling the variances estimated along each column
     s = y.var(axis=0, ddof=1).mean()
-    print 'Total variance : %g' % s
+    main = 1.0 - np.asarray(main) / s
+    inter = np.asarray(inter) / s
+    return main, inter, s
+
+# TODO <Fri Mar 25 23:45:37 CET 2011>: should get names of response variables
+# from command line (or file)
+def main(args):
     if args.params_file is not None:
-        for p,m,t in zip(args.params,main,inter):
-            print '%s : %g\t%g' % (p, 1 - m / s, t / s)
+        args.params = args.params_file.readline().strip().split(args.sep)
+    if args.with_errors:
+        X, Y, _ = gettxtdata(args.data, args.responses, delimiter=args.sep,
+                with_errors=True)
     else:
-        for m, t in zip(main,inter):
-            print '%g\t%g' % (1 - m / s, t / s)
-        
+        X, Y = gettxtdata(args.data, args.responses, delimiter=args.sep,
+                with_errors=False)
+    N, M = X.shape
+    intervals = zip(X.min(axis=0), X.max(axis=0))
+    prng = np.random.RandomState(args.seed)
+    W = wsinputs(args.rows, M, intervals, prng)
+    sm = SurrogateModel.fitGP(X,Y)
+    YW = np.dstack([ sm(W[i]).T for i in xrange(len(W))]).swapaxes(1,2)
+    for i,yw in enumerate(YW):
+        print '-------------'
+        print 'Parameter %d' % i
+        print '-------------'
+        main, inter, s = indices(yw)
+        print 'Total variance : %g' % s
+        if args.params_file is not None:
+            for p,m,t in zip(args.params, main, inter):
+                print '%s\t%g\t%g' % (p, m, t)
+        else:
+            for m, t in zip(main, inter):
+                print '%g\t%g' % (m, t)
+        print
 
 if __name__ == '__main__':
-    parser = ArgumentParser(description='Computes main and interaction effect '
-            'indices')
-    parser.add_argument('data', type=FileType('r'), metavar='FILE', help='data'\
-            ' file')
+    parser = ArgumentParser(description=__doc__)
+    parser.add_argument('data', type=FileType('r'), help='data file')
+    parser.add_argument('responses', type=int, help='number of response '
+            'variables (default: %(default)d)', default=1)
+    parser.add_argument('-r', '--rows', help='number of WS rows (default:'
+            ' %(default)d)', type=int, default=64)
     parser.add_argument('-p', '--parameters', type=FileType('r'), help='set '\
             'titles to parameters taken from %(metavar)s', dest='params_file', 
             metavar='FILE')
     parser.add_argument('-d', '--delimiter', default=',', help='delimiter of '\
             'data values', metavar='CHAR', dest='sep')
-    parser.add_argument('-e','--with-error', action='store_true', help='if TRUE'\
+    parser.add_argument('-e','--with-errors', action='store_true', help='if TRUE'\
             ', interprete last field as measurement standard errors')
+    parser.add_argument('seed', type=int, nargs='?', help='Seed for the '
+            'generator of pseudo-random numbers')
     ns = parser.parse_args()
     main(ns)
