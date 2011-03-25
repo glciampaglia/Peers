@@ -8,7 +8,7 @@ simtime=1 # in days
 trantime=2 # in days
 
 order=(daily_edits daily_users daily_pages confidence speed const_succ
- const_pop rollback_prob long_life short_life)
+ const_pop rollback_prob short_life long_life)
 
 echo ${order[@]} | sed -e 's/ /,/g' > params.txt
 
