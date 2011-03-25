@@ -13,7 +13,12 @@ import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as pp
 
-from utils import fmt, rect
+from .utils import fmt, rect
+
+# TODO <Fri Mar 25 23:54:07 CET 2011>:
+# - make it compute PCC and produce scatter plots for each response variable
+#   (right now it assumed only one output variable)
+# - use gettxtdata and other functions
 
 # TODO <Wed Feb  2 10:37:39 CET 2011> compute R^2 of regression of y on {x} U z?
 # It is computed in gsa_regr.py anyways ...
@@ -44,8 +49,8 @@ def pcc(x,y,z):
     * From the Penn. State Univ. STAT 505 online course notes - http://www.stat.psu.edu/online/courses/stat505/07_partcor/06_partcor_partial.html 
     '''
     # First find an orthonormal basis for the space spanned by vectors of z.
-    # Hat tip to R. Kern and G. Varoquax for QR decomposition. See here:
-    # http://thread.gmane.org/gmane.comp.python.numeric.general/35633 
+    # Hat tip to R. Kern and G. Varoquax for the idea of the QR decomposition.
+    # See here: http://thread.gmane.org/gmane.comp.python.numeric.general/35633 
     zorth = np.linalg.qr(z.T)[0].T
     # then compute residuals of regression of x respectively y on z 
     x = x - np.dot(np.dot(zorth, x), zorth)

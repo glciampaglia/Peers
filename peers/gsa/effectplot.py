@@ -12,7 +12,7 @@ from matplotlib.font_manager import FontProperties
 from mpl_toolkits.mplot3d import Axes3D
 from string import uppercase
 
-from utils import SurrogateModel, rect
+from .utils import SurrogateModel, rect
 
 lineMarkers = lineMarkers.items()
 lineMarkers = filter(lambda k : k[1] != '_draw_nothing', lineMarkers)
@@ -125,6 +125,7 @@ def main(args):
         Y = data[:,-args.responses:]
         Ye = None
     sm = SurrogateModel.fitGP(X, Y)
+    # TODO get these from file instead?
     bounds = zip(X.min(axis=0), X.max(axis=0))
     if args.main:
         Xm, Ym = maineffect(sm, bounds, args.num)
