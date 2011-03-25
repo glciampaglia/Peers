@@ -15,7 +15,10 @@ from numpy import get_include
 #        include_dirs=[ numpy_include, numpy_random_include ],
 #        extra_compile_args=['-Winline',])
 
-_includes = [get_include()]
+# the current directory is needed since we are in a package and Cython will try
+# to lookup definitions for module rand (rand.pxd) by looking at peers.rand and
+# not just for peers.
+_includes = [ get_include(), '.']
 
 setup(
         cmdclass = { 'build_ext' : build_ext },
