@@ -34,14 +34,3 @@ class IncIDMixin(object):
     def id(self):
         return self.__id__
 
-def _myformatwarning(*args):
-    msg = args[0]
-    return '* WARNING: %s\n' % msg.args[0]
-
-# custom warning formatting
-formatwarning = _myformatwarning
-import warnings
-# default is saved in warnings._formatwarning
-warnings._formatwarning = warnings.formatwarning
-warnings.formatwarning = formatwarning
-
