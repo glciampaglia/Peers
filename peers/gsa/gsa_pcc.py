@@ -7,15 +7,13 @@ Author: Giovanni Luca Ciampaglia <ciampagg@usi.ch>
 '''
 
 from __future__ import division
-import re
 from argparse import ArgumentParser, FileType
 from datetime import datetime
 import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as pp
 
-def fmt(f):
-    return re.search('\.(\w+)$', f.name).group()[1:]
+from utils import fmt, rect
 
 # TODO <Wed Feb  2 10:37:39 CET 2011> compute R^2 of regression of y on {x} U z?
 # It is computed in gsa_regr.py anyways ...
@@ -94,15 +92,13 @@ def main(args):
     data = np.loadtxt(args.data, delimiter=args.delimiter)
     fig = pp.figure()
     # set space between plots
-    fig.subplotpars.update(wspace=.2,hspace=.5)
+    fig.subplotpars.update(wspace=.3,hspace=.5)
     if args.error_bars:
         X = data[:,:-2]
         y = data[:,-2]
         ye = data[:,-1]
         n,d = X.shape
-        if d < args.cols:
-            args.cols = d
-        args.rows = np.ceil(d / args.cols)
+        args.cols, args.rows = rect(d)
         for i,x in enumerate(X.T):
             ax = pp.subplot(args.rows,args.cols,i+1)
             ax.errorbar(x,y,ye/2.0, marker='o', ls='',c='w')
@@ -110,6 +106,7 @@ def main(args):
         X = data[:,:-1]
         y = data[:,-1]
         n,d = X.shape
+        args.cols, args.rows = rect(d)
         if d < args.cols:
             args.cols = d
         args.rows = np.ceil(d / args.cols)
@@ -122,7 +119,7 @@ def main(args):
         args.params = args.params_file.readline().strip().split(',')
         for i in xrange(d):
             ax = fig.axes[i]
-            ax.set_title(args.params[i].replace('_',' ').capitalize())
+            ax.set_title(args.params[i], fontsize='medium')
             idx = range(d)
             del idx[i]
             pcc_results[args.params[i]] = pcc(X[:,i], y, X[:,idx].T) 
@@ -162,8 +159,6 @@ def make_parser():
             'data values', metavar='CHAR')
     parser.add_argument('-e','--error-bars', action='store_true', help='plot '\
             'error bars (standard errors in last column)')
-    parser.add_argument('-c','--columns', type=int, default=3, dest='cols',
-            help='arrange plots in %(metavar)s columns', metavar='NUM')
     return parser
 
 if __name__ == '__main__':
