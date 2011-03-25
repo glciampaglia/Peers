@@ -14,10 +14,9 @@ from time import time
 from cStringIO import StringIO
 from warnings import warn
 
-from rand import randwpmf
-from myio import arrayfile
-from utils import ttysize, IncIDMixin
-from cpeers import loop as c_loop
+from .rand import randwpmf
+from .utils import ttysize, IncIDMixin
+from .cpeers import loop as c_loop
 
 class User(IncIDMixin):
     ''' Class for user instances '''

@@ -14,7 +14,7 @@ from scipy.optimize import fmin_l_bfgs_b
 from scipy.spatial import KDTree
 from scipy.stats import ks_2samp, mannwhitneyu
 
-from myio import load
+from peers.ioutils import load
 from criterion import *
 
 # Kolmogorov-Smirnov, default for continuous data

@@ -10,7 +10,7 @@ from __future__ import division
 import numpy as np
 import cython
 
-from rand cimport _randwpmf
+from peers.rand cimport _randwpmf
 cimport numpy as cnp
 
 cdef extern from "math.h":

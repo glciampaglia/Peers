@@ -17,7 +17,7 @@ markers.remove('')
 markers[2] = 'o'
 markers[3] = 'v'
 
-from myio import load
+from ioutils import load
 
 def _figure(args):
     fig = pp.figure(figsize=args.figsize)

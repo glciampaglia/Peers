@@ -7,7 +7,8 @@ import os
 import zipfile
 from argparse import ArgumentParser, FileType
 import numpy as np
-from myio import save
+
+from ioutils import save
 
 description='''Creates a compressed archive with simulation output data.
 The archive contains information on the input parameters to the simulation runs
