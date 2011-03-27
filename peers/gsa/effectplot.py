@@ -45,7 +45,7 @@ def twowayeffect(i, j, surrogate, bounds, num=10000):
     N = len(bounds)
     n = np.arange(N)
     isl = slice(bounds[i,0], bounds[i,1], 20j)
-    jsl = slice(bounds[i,0], bounds[i,1], 20j)
+    jsl = slice(bounds[j,0], bounds[j,1], 20j)
     Xi, Xj = np.mgrid[isl,jsl]
     s = np.diff(bounds, axis=1).T
     m = bounds[:, 0]
@@ -91,21 +91,22 @@ def plotmain(X, Y, names=None):
     pp.draw()
     pp.show()
 
-def plottwoway(Xi, Xj, Y, xlabel=None, ylabel=None):
+def plottwoway(Xi, Xj, Y, labels=None):
     pp.close('all')
     fig = pp.figure()
     ax = Axes3D(fig)
     surf = ax.plot_surface(Xi, Xj, Y, rstride=1, cstride=1, cmap=pp.cm.jet,
             linewidth=2, antialiased=True)
     fig.colorbar(surf, shrink=0.5, aspect=5)
-    if xlabel is not None:
-        pp.xlabel(xlabel, fontsize=14)
+    if labels is not None:
+        xlabel, ylabel, zlabel = labels
+        ax.set_xlabel(xlabel, fontsize=14)
+        ax.set_ylabel(ylabel, fontsize=14)
+        ax.set_zlabel(zlabel, fontsize=14)
     else:
-        pp.xlabel('parameter value', fontsize=14)
-    if xlabel is not None:
-        pp.ylabel(ylabel, fontsize=14)
-    else:
-        pp.ylabel('main effect', fontsize=14)
+        ax.set_xlabel('parameter A value', fontsize=14)
+        ax.set_ylabel('parameter B value', fontsize=14)
+        ax.set_zlabel('interaction effect', fontsize=14)
     pp.draw()
     pp.show()
 
@@ -125,7 +126,6 @@ def main(args):
         Y = data[:,-args.responses:]
         Ye = None
     sm = SurrogateModel.fitGP(X, Y)
-    # TODO get these from file instead?
     bounds = zip(X.min(axis=0), X.max(axis=0))
     if args.main:
         Xm, Ym = maineffect(sm, bounds, args.num)
@@ -134,10 +134,10 @@ def main(args):
     elif args.interaction is not None:
         i, j = args.interaction
         Xi, Xj, Y = twowayeffect(i, j, sm, bounds, args.num)
-        plottwoway(Xi, Xj, Y, args.xlabel, args.ylabel)
+        plottwoway(Xi, Xj, Y, args.labels)
         return Xi, Xj, Y
 
-if __name__ == '__main__':
+def make_parser():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument('data', type=FileType('r'), help='simulation data')
     parser.add_argument('responses', type=int, help='number of response '
@@ -156,10 +156,11 @@ if __name__ == '__main__':
             'for monte carlo (default: %(default)d)')
     parser.add_argument('-p', '--parameters', help='parameter names',
             type=FileType('r'), metavar='FILE')
-    parser.add_argument('-x', '--xlabel', help='X axis label for interaction '
-            'effect plot')
-    parser.add_argument('-y', '--ylabel', help='Y ayis label for interaction '
-            'effect plot')
+    parser.add_argument('-l', '--labels', help='Axes label for 3D interaction '
+            'effect plot', nargs=3)
+    return parser
+
+if __name__ == '__main__':
+    parser = make_parser()
     ns = parser.parse_args()
     res = main(ns)
-
