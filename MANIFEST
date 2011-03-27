@@ -1,4 +1,5 @@
 setup.py
+setup_cython.py
 peers/__init__.py
 peers/diagnostics.py
 peers/grid.py
