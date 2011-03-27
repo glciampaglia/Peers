@@ -1,0 +1,99 @@
+#!/usr/bin/python
+
+''' Frontend to the `peers` package'''
+
+from textwrap import wrap
+from argparse import ArgumentParser, Action
+from peers.utils import ttysize
+
+# TODO:
+# fix problem with parse_known_args that parses -h and prints this help and no
+# the help of the commands
+
+commands = {
+        'peers' : (
+            'peers.peers', 
+            'simulate the model'
+            ),
+        'effectplot' : ( 
+            'peers.gsa.effectplot', 
+            'produce main and interaction effect plots'
+            ),
+        'vardec' : (
+            'peers.gsa.vardec', 
+            'compute main and total interaction effect sensitivity indices'
+            ),
+        'pcc' : (
+            'peers.gsa.pcc',
+            'computes partial correlation sensitivity indices'
+            ),
+        'regr' : (
+            'peers.gsa.regression',
+            'computes standardized regression coefficients sensitivity indices'
+            ),
+        'lhd' : (
+            'peers.design.lhd',
+            'latin hypercube design'
+            ),
+        'winding' : (
+            'peers.design.winding',
+            'winding stairs design'
+            ),
+        'jobs' : (
+            'peers.jobs',
+            'template-based command line builder'
+            ),
+        'pexec' : (
+            'peers.pexec',
+            'parallel execution script'
+            ),
+        'lt' : (
+            'peers.lt',
+            'post-processing script',
+            ),
+        'stats' : (
+            'peers.stats',
+            'plots lifetime statistics'
+            ),
+        'diagnotiscs' : (
+            'peers.diagnostics',
+            'plots active users/pages during a simulation'
+            ),
+
+}
+
+class _HelpCommandsAction(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        print
+        print 'Available commands:'
+        print
+        h, w = ttysize() or (40, 85)
+        M = max(map(len, commands)) + 1
+        sep = ' '
+        for cmd, (fqmn, helptext) in sorted(commands.items()):
+            lines = wrap(helptext, w - M - len(sep))
+            print ' ' + cmd.ljust(M) + sep + lines[0]
+            if len(lines) > 1:
+                for l in lines[1:]:
+                    print ' '*(M + len(sep)+1) + l
+        parser.exit(2)
+
+def make_parser():
+    parser = ArgumentParser()
+    parser.add_argument('command', choices=commands.keys())
+    parser.add_argument('--help-commands', action=_HelpCommandsAction, 
+            help='list all commands', nargs=0)
+    return parser
+
+def main(ns, args):
+    cmd, desc = commands[ns.command]
+    module = __import__(cmd, fromlist=['*'])
+    cmd_parser = module.make_parser()
+    cmd_ns = cmd_parser.parse_args(' '.join(args))
+    res = module.main(cmd_ns)
+
+if __name__ == '__main__':
+    parser = make_parser()
+    ns, args = parser.parse_known_args()
+    main(ns, args)
+    
