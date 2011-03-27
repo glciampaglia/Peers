@@ -59,7 +59,10 @@ commands = {
             'peers.diagnostics',
             'plots active users/pages during a simulation'
             ),
-
+        'help' : (
+            '',
+            'print this help message and exit',
+            )
 }
 
 class _HelpCommandsAction(Action):
@@ -79,13 +82,16 @@ class _HelpCommandsAction(Action):
         parser.exit(2)
 
 def make_parser():
-    parser = ArgumentParser()
+    parser = ArgumentParser(description=__doc__, add_help=False)
     parser.add_argument('command', choices=commands.keys())
     parser.add_argument('--help-commands', action=_HelpCommandsAction, 
             help='list all commands', nargs=0)
     return parser
 
 def main(ns, args):
+    if ns.command == 'help':
+        parser.print_help()
+        parser.exit(2)
     cmd, desc = commands[ns.command]
     module = __import__(cmd, fromlist=['*'])
     cmd_parser = module.make_parser()
