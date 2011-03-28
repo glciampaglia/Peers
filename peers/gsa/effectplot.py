@@ -12,7 +12,7 @@ from matplotlib.font_manager import FontProperties
 from mpl_toolkits.mplot3d import Axes3D
 from string import uppercase
 
-from .utils import SurrogateModel, rect
+from .utils import SurrogateModel, rect, fmt
 
 lineMarkers = lineMarkers.items()
 lineMarkers = filter(lambda k : k[1] != '_draw_nothing', lineMarkers)
@@ -60,7 +60,7 @@ def twowayeffect(i, j, surrogate, bounds, num=10000):
     Y = np.reshape(Y, Xi.shape)
     return Xi,Xj,Y
 
-def plotmain(X, Y, names=None):
+def plotmain(X, Y, names=None, output=None):
     pp.close('all')
     Mi, N, Mo = Y.shape
     rows, cols =rect(Mo)
@@ -89,15 +89,30 @@ def plotmain(X, Y, names=None):
                 prop=FontProperties(size='x-small'))
     fig.subplots_adjust(wspace=.25, left=.15, right=.95, bottom=.15)
     pp.draw()
+    if output is not None:
+        pp.savefig(output, format=fmt(output.name))
     pp.show()
 
-def plottwoway(Xi, Xj, Y, labels=None):
+def plottwoway(Xi, Xj, Y, labels=None, incolor=False, output=None):
+    '''
+    Plots the 2-way interaction effect between given factors.
+
+    Parameters
+    ----------
+    Xi, Xj, Y - 2D data arrays
+    labels    - specify axes labels
+    incolor   - produce a color plot with a color bar
+    '''
     pp.close('all')
     fig = pp.figure()
     ax = Axes3D(fig)
-    surf = ax.plot_surface(Xi, Xj, Y, rstride=1, cstride=1, cmap=pp.cm.jet,
-            linewidth=2, antialiased=True)
-    fig.colorbar(surf, shrink=0.5, aspect=5)
+    if incolor:
+        surf = ax.plot_surface(Xi, Xj, Y, rstride=1, cstride=1, cmap=pp.cm.jet,
+                antialiased=True, linewidth=1)
+        fig.colorbar(surf, shrink=0.5, aspect=5)
+    else:
+        surf = ax.plot_surface(Xi, Xj, Y, rstride=1, cstride=1, color='w',
+                antialiased=True, linewidth=1)
     if labels is not None:
         xlabel, ylabel, zlabel = labels
         ax.set_xlabel(xlabel, fontsize=14)
@@ -108,6 +123,8 @@ def plottwoway(Xi, Xj, Y, labels=None):
         ax.set_ylabel('parameter B value', fontsize=14)
         ax.set_zlabel('interaction effect', fontsize=14)
     pp.draw()
+    if output is not None:
+        pp.savefig(output, format=fmt(output.name))
     pp.show()
 
 def main(args):
@@ -134,7 +151,7 @@ def main(args):
     elif args.interaction is not None:
         i, j = args.interaction
         Xi, Xj, Y = twowayeffect(i, j, sm, bounds, args.num)
-        plottwoway(Xi, Xj, Y, args.labels)
+        plottwoway(Xi, Xj, Y, args.labels, args.color)
         return Xi, Xj, Y
 
 def make_parser():
@@ -157,7 +174,11 @@ def make_parser():
     parser.add_argument('-p', '--parameters', help='parameter names',
             type=FileType('r'), metavar='FILE')
     parser.add_argument('-l', '--labels', help='Axes label for 3D interaction '
-            'effect plot', nargs=3)
+            'effect plot', nargs=3, metavar='TEXT')
+    parser.add_argument('-c', '--color', help='Produce a colored 3D interaction'
+            ' effect plot', action='store_true')
+    parser.add_argument('-o', '--output', type=FileType('w'), help='graphics '
+            'output file', metavar='FILE')
     return parser
 
 if __name__ == '__main__':
