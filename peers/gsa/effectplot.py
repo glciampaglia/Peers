@@ -61,6 +61,15 @@ def twowayeffect(i, j, surrogate, bounds, num=10000):
     return Xi,Xj,Y
 
 def plotmain(X, Y, names=None, output=None):
+    '''
+    Plots the main effect of all factors
+
+    Parameters
+    ----------
+    X      - a list of arrays with factors value
+    Y      - a list of arrays with main effect values
+    output - file-like object
+    '''
     pp.close('all')
     Mi, N, Mo = Y.shape
     rows, cols =rect(Mo)
@@ -126,6 +135,7 @@ def plottwoway(Xi, Xj, Y, labels=None, incolor=False, output=None):
     if output is not None:
         pp.savefig(output, format=fmt(output.name))
     pp.show()
+    pp.close()
 
 def main(args):
     if args.parameters is not None:
@@ -145,13 +155,13 @@ def main(args):
     sm = SurrogateModel.fitGP(X, Y)
     bounds = zip(X.min(axis=0), X.max(axis=0))
     if args.main:
-        Xm, Ym = maineffect(sm, bounds, args.num)
-        plotmain(Xm, Ym, parameters)
+        Xm, Ym = maineffect(sm, bounds, args.num, args.output)
+        plotmain(Xm, Ym, parameters, args.output)
         return Xm, Ym
     elif args.interaction is not None:
         i, j = args.interaction
         Xi, Xj, Y = twowayeffect(i, j, sm, bounds, args.num)
-        plottwoway(Xi, Xj, Y, args.labels, args.color)
+        plottwoway(Xi, Xj, Y, args.labels, args.color, args.output)
         return Xi, Xj, Y
 
 def make_parser():
