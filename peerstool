@@ -2,14 +2,12 @@
 
 ''' Frontend to the `peers` package'''
 
+import sys
 from textwrap import wrap
 from argparse import ArgumentParser, Action
 from peers.utils import ttysize
 
-# TODO:
-# fix problem with parse_known_args that parses -h and prints this help and no
-# the help of the commands
-
+# TODO: add scripts in peers/fit/
 commands = {
         'peers' : (
             'peers.peers', 
@@ -78,14 +76,16 @@ class _HelpCommandsAction(Action):
             print ' ' + cmd.ljust(M) + sep + lines[0]
             if len(lines) > 1:
                 for l in lines[1:]:
-                    print ' '*(M + len(sep)+1) + l
-        parser.exit(2)
+                    print ' ' * (M + len(sep) + 1) + l
+        print
 
 def make_parser():
     parser = ArgumentParser(description=__doc__, add_help=False)
     parser.add_argument('command', choices=commands.keys())
     parser.add_argument('--help-commands', action=_HelpCommandsAction, 
             help='list all commands', nargs=0)
+    parser.add_argument('-D', '--debug', action='store_true', help='raise '
+            'Python exceptions to the console')
     return parser
 
 def main(ns, args):
@@ -95,11 +95,24 @@ def main(ns, args):
     cmd, desc = commands[ns.command]
     module = __import__(cmd, fromlist=['*'])
     cmd_parser = module.make_parser()
-    cmd_ns = cmd_parser.parse_args(' '.join(args))
+    cmd_ns = cmd_parser.parse_args(args)
     res = module.main(cmd_ns)
 
 if __name__ == '__main__':
     parser = make_parser()
     ns, args = parser.parse_known_args()
-    main(ns, args)
+    try:
+        main(ns, args)
+    except:
+        ty,val,tb = sys.exc_info()
+        if ns.debug:
+            raise ty, val, tb
+        else:
+            if ty is SystemExit:
+                raise
+            if ty is KeyboardInterrupt:
+                print 
+                sys.exit(1)
+            name = ty.__name__
+            parser.error('%s : %s' % (name, val))
     
