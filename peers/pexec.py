@@ -76,8 +76,6 @@ def banner():
     print datetime.datetime.now()
     print '*'*w
 
-# XXX fix problem with calling map on a TaskClient interface instead of a
-# MultiEngineClient.
 def main(args):
     if args.input.isatty():
         print >> sys.stderr, 'Reading from terminal. Press ^D to finish.'
@@ -94,8 +92,9 @@ def main(args):
         with catch_warnings():
             simplefilter('ignore', DeprecationWarning)
             mec = MultiEngineClient()
+            tc = TaskClient()
         _setwd(args, mec)
-        return mec.map(execcmd, cmds)
+        return tc.map(execcmd, cmds)
     except CompositeError,e:
         e.print_tracebacks()
     finally:

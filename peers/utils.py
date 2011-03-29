@@ -4,12 +4,16 @@ from subprocess import Popen, PIPE
 def ttysize():
     '''
     Returns the size of the terminal by calling stty size, or None if the
-    system call raise error from the OS.
+    system call raise error from the OS or if standard output is not a tty.
     '''
     p = Popen('stty size'.split(), stdout=PIPE, stderr=PIPE)
     try:
-        h,w = p.communicate()[0].split()
-        return int(h), int(w)
+        out = p.communicate()[0]
+        if out:
+            h, w = out.split()
+            return int(h), int(w)
+        # else standard out is not a tty; in this case 'stty size' returns an
+        # empty string.
     except OSError:
         pass
 
