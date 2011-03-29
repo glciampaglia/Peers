@@ -11,6 +11,8 @@ with catch_warnings():
     simplefilter('ignore', DeprecationWarning)
     from IPython.kernel.client import MultiEngineClient, TaskClient, CompositeError
 
+from .utils import ttysize
+
 def execcmd(cmd):
     '''
     Worker's function. Executes cmd in a subshell. Returns exit code from the
@@ -69,10 +71,13 @@ def _setwd(args, client):
     client.execute('os.chdir(%s)' % repr(args.cwd))
 
 def banner():
-    print '*'*80
+    h,w = ttysize() or (85,40)
+    print '*'*w
     print datetime.datetime.now()
-    print '*'*80
+    print '*'*w
 
+# XXX fix problem with calling map on a TaskClient interface instead of a
+# MultiEngineClient.
 def main(args):
     if args.input.isatty():
         print >> sys.stderr, 'Reading from terminal. Press ^D to finish.'
@@ -84,8 +89,8 @@ def main(args):
         for i,c in enumerate(cmds):
             print 'JOB %d) %s' % (i,c)
     try:
-        if args.dry_run:
-            return # does not open client interface
+        if args.dry_run: # don't connect to controller
+            return 
         with catch_warnings():
             simplefilter('ignore', DeprecationWarning)
             mec = MultiEngineClient()
