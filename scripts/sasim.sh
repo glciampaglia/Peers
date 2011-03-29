@@ -12,8 +12,8 @@ order=(daily_edits daily_users daily_pages confidence speed const_succ
 
 echo ${order[@]} | sed -e 's/ /,/g' > params.txt
 
-peerstool lhd -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
-     -i 0 1 -i 0 1 -i 10 100 $size 10 > sample.txt
+peerstool lhd -m 50000 -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100\
+    -i 0 100 -i 0 1 -i 0 1 -i 10 100 $size 10 > sample.txt
 
 # peerstool winding -i 1 100 -i 1 200 -i 1 200 -i 0 1 -i 0 0.5 -i 0 100 -i 0 100\
 #     -i 0 1 -i 0 1 -i 10 100 $size 10 > sample.txt
