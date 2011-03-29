@@ -8,7 +8,8 @@ def ttysize():
     '''
     p = Popen('stty size'.split(), stdout=PIPE, stderr=PIPE)
     try:
-        return map(int, p.communicate()[0].split())
+        h,w = p.communicate()[0].split()
+        return int(h), int(w)
     except OSError:
         pass
 
