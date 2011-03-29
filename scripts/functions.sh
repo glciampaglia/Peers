@@ -31,7 +31,7 @@ function simulate {
         echo -n "Waiting for ipcluster local ($PID) to start..."
     fi
     sleep 5
-    python jobs.py -r $reps "$cmd" < sample.txt | python pexec.py -v
+    peerstool jobs -r $reps "$cmd" < sample.txt | peerstool pexec -v
     kill -2 $PID
     sleep 5
     kill -CONT $PID &>/dev/null # if kill returns 0 then process is still alive
