@@ -2,12 +2,41 @@
 
 from argparse import ArgumentParser, FileType
 
-# TODO <ven 29 ott 2010, 11.34.15, CEST> use scikits
 import numpy as np
+from scipy.interpolate import splrep, splev
+from matplotlib.collections import LineCollection
+from matplotlib.colors import colorConverter
 import matplotlib.pyplot as pp
 from collections import deque
 import sys
 
+from gsa.utils import fmt
+
+def counts(x, span, tmin=0.):
+    '''
+    Computes counts with given frequency
+
+    Parameters
+    ----------
+    x    - a 2D array sorted along axis 0 (time)
+    span - time frequency span (in days)
+    tmin - (optional) initial time, instead of tmin = 0.
+    '''
+    if span <= 0:
+        raise ValueError('positive span expected : %g' % span)
+    N, M = x.shape
+    tmax = np.ceil(x[-1, 0])
+    Nc = int((tmax - tmin) / span)
+    res = np.empty((Nc, M))
+    nums, T = np.histogram(x[:, 0], bins=Nc, range=(tmin,tmax))
+    c = 0
+    for i, n in enumerate(nums):
+        res[i, 1:] = x[c:(c + n), 1:].mean(axis=0)
+        res[i, 0] = T[i]
+        c += n
+    return res
+
+# TODO: remove
 def moving(x, window):
     if window <= 0:
         raise ValueError('negative window')
@@ -20,49 +49,81 @@ def moving(x, window):
             tmp.popleft()
     return ma
 
-def plot_data(args):
-    for i,data_file in enumerate(args.input_file):
-        print 'processing %s...' % data_file.name,
+def counts_main(args):
+    coll = {}
+    for i, f in enumerate(args.inputs):
+        print 'processing %s ...' % f.name,
         sys.stdout.flush()
-        data = np.loadtxt(data_file)
-        t, users, pages = data.T
-        if args.window: 
-            users = moving(users, args.window)
-            pages = moving(pages, args.window)
-        if args.users:
-            pp.plot(t, users, label='users #%d' % i, hold=1)
-        elif args.pages:
-            pp.plot(t, pages, label='pages #%d' %i, hold=1)
+        x = np.loadtxt(f)
+        coll[f.name] = counts(x, args.frequency)
+        print 'done'
+        sys.stdout.flush()
+    print 'saving to %s ...' % args.output.name,
+    sys.stdout.flush()
+    np.savez(args.output, **coll)
+    print 'done.'
+
+# TODO: find better way to use B-splines
+def plot_main(args):
+    coll = []
+    npz = np.load(args.input)
+    for arr in ( npz[n] for n in npz.files ):
+        T, U, P = arr.T
+        if args.plot_users:
+            coll.append(np.c_[T,U])
         else:
-            l,ll = pp.plot(t, users, t, pages)
-            l.set_label('users #%d' % i)
-            ll.set_label('pages #%d' % i)
-        print ' done'
-        sys.stdout.flush()
+            coll.append(np.c_[T,P])
+    fig = pp.figure()
+    ax = pp.subplot(111)
+    lc = LineCollection(coll, 
+            colors=colorConverter.to_rgba_array('k' * len(coll), args.alpha))
+    ax.add_collection(lc)
+    if args.mean:
+        coll = np.asarray(coll)
+        m = coll[:,::20,1].mean(axis=0)
+        spl = splrep(T[::20], m)
+        tt = np.linspace(T[0],T[-1], 1000)
+        mm = splev(tt, spl)
+        ax.plot(tt, mm, 'r-', lw=3)
+    pp.axis('tight')
+    pp.draw()
+    if args.output is not None:
+        pp.savefig(args.output, format=fmt(args.output.name))
+    pp.show()
 
 def main(args):
-    if args.pages and args.users:
-        print 'Conflicting arguments. You cannot use both -u/--users and -p/--pages'
-        import sys
-        sys.exit(-2)
-    plot_data(args)
-    pp.legend(loc=7)
-    pp.xlabel('time (days)')
-    if args.window:
-        pp.title('moving average (window length = %d)' % args.window)
-    pp.draw()
-    pp.show()
+    return args.action(args)
 
 def make_parser():
     parser = ArgumentParser()
-    parser.add_argument('input_file', metavar='input', help='input file',
+    subs = parser.add_subparsers(help='action to perform')
+    #
+    # parser for producing counts data
+    parser_a = subs.add_parser('counts', help='compute counts data')
+    parser_a.add_argument('-f', '--frequency', type=float, default=1.0,
+            help='frequency in days (default: %(default)g)', metavar='VALUE')
+    parser_a.add_argument('inputs', metavar='FILE', help='input file(s)', 
             nargs='+', type=FileType('r'))
-    parser.add_argument('-w','--window', type=int, metavar='length',
-            help='plot moving average with given window length')
-    parser.add_argument('-p', '--pages', action='store_true', default=False,
-            help='plot only number of pages')
-    parser.add_argument('-u', '--users', action='store_true', default=False,
-            help='plot only number of users')
+    parser_a.add_argument('-o','--output', help='output file', required=True,
+            type=FileType('w'))
+    parser_a.set_defaults(action=counts_main)
+    #
+    # parser for plotting counts data
+    parser_b = subs.add_parser('plot', help='plot counts data')
+    group = parser_b.add_mutually_exclusive_group(required=True)
+    group.add_argument('-p', '--pages', action='store_false', default=False,
+            help='plot only number of pages', dest='plot_users')
+    group.add_argument('-u', '--users', action='store_true', default=False,
+            help='plot only number of users', dest='plot_users')
+    parser_b.add_argument('input', type=FileType('r'), help='input archive '
+            'file', metavar='FILE')
+    parser_b.add_argument('-o', '--output', metavar='FILE', type=FileType('w'),
+            help='save graphics to %(metavar)s')
+    parser_b.add_argument('-a', '--alpha', type=float, help='alpha value')
+    group2 = parser_b.add_mutually_exclusive_group()
+    group2.add_argument('-m', '--mean', action='store_true', help='add mean'
+            ' of data to plot')
+    parser_b.set_defaults(action=plot_main)
     return parser
 
 if __name__ == '__main__':
