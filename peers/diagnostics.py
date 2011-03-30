@@ -36,19 +36,6 @@ def counts(x, span, tmin=0.):
         c += n
     return res
 
-# TODO: remove
-def moving(x, window):
-    if window <= 0:
-        raise ValueError('negative window')
-    tmp = deque()
-    ma  = deque()
-    for i in xrange(len(x)):
-        ma.append(np.mean(tmp))
-        tmp.append(x[i])
-        if len(tmp) > window:
-            tmp.popleft()
-    return ma
-
 def counts_main(args):
     coll = {}
     for i, f in enumerate(args.inputs):
@@ -63,16 +50,21 @@ def counts_main(args):
     np.savez(args.output, **coll)
     print 'done.'
 
-# TODO: find better way to use B-splines
 def plot_main(args):
+    if args.rescale is not None and args.rescale <= 0:
+        raise ValueError('expected positive value for rescaling : %d' %
+                args.rescale)
     coll = []
     npz = np.load(args.input)
-    for arr in ( npz[n] for n in npz.files ):
-        T, U, P = arr.T
+    for arr in ( npz[n] for n in sorted(npz.files) ):
+        x, U, P = arr.T
         if args.plot_users:
-            coll.append(np.c_[T,U])
+            y = U
         else:
-            coll.append(np.c_[T,P])
+            y = P
+        if args.rescale is not None:
+            y = y / y[-args.rescale:].mean()
+        coll.append(np.c_[x,y])
     fig = pp.figure()
     ax = pp.subplot(111)
     lc = LineCollection(coll, 
@@ -81,11 +73,24 @@ def plot_main(args):
     if args.mean:
         coll = np.asarray(coll)
         m = coll[:,::20,1].mean(axis=0)
-        spl = splrep(T[::20], m)
-        tt = np.linspace(T[0],T[-1], 1000)
+        spl = splrep(x[::20], m)
+        tt = np.linspace(x[0],x[-1], 1000)
         mm = splev(tt, spl)
         ax.plot(tt, mm, 'r-', lw=3)
     pp.axis('tight')
+    if args.annotate is not None:
+        ym, yM = pp.ylim()
+        ys = yM - ym
+        xt = args.annotate * .45
+        yt = yM + .1 * ys
+        ax.text(xt, yt, 'Transient')
+        ax.axvspan(0, args.annotate, color='b', alpha=args.alpha/2)
+        pp.ylim(ym, yM + .15 * ys)
+    pp.xlabel('time (days)', fontsize=16)
+    if args.rescale is not None:
+        pp.ylabel(r'scaled lifetime $\tau / <\tau>$', fontsize=16)
+    else:
+        pp.ylabel(r'lifetime $\tau$', fontsize=16)
     pp.draw()
     if args.output is not None:
         pp.savefig(args.output, format=fmt(args.output.name))
@@ -119,10 +124,15 @@ def make_parser():
             'file', metavar='FILE')
     parser_b.add_argument('-o', '--output', metavar='FILE', type=FileType('w'),
             help='save graphics to %(metavar)s')
-    parser_b.add_argument('-a', '--alpha', type=float, help='alpha value')
-    group2 = parser_b.add_mutually_exclusive_group()
-    group2.add_argument('-m', '--mean', action='store_true', help='add mean'
+    parser_b.add_argument('-a', '--alpha', type=float, help='alpha value',
+            default=0.5)
+    parser_b.add_argument('-m', '--mean', action='store_true', help='add mean'
             ' of data to plot')
+    parser_b.add_argument('-r', '--rescale', type=int, help='rescale each curve'
+            ' independently to mean over last %(metavar)s observations',
+            metavar='NUM')
+    parser_b.add_argument('-n', '--annotate', type=int, help='add shaded '
+            'regions at t = %(metavar)d', metavar='NUM')
     parser_b.set_defaults(action=plot_main)
     return parser
 
