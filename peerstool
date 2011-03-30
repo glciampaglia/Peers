@@ -53,7 +53,7 @@ commands = {
             'peers.stats',
             'plots lifetime statistics'
             ),
-        'diagnotiscs' : (
+        'diagnostics' : (
             'peers.diagnostics',
             'plots active users/pages during a simulation'
             ),
