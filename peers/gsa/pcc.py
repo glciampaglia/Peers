@@ -14,6 +14,7 @@ import scipy.stats as st
 import matplotlib.pyplot as pp
 
 from .utils import fmt, rect
+from ..utils import sanetext
 
 # TODO <Fri Mar 25 23:54:07 CET 2011>:
 # - make it compute PCC and produce scatter plots for each response variable
@@ -124,7 +125,7 @@ def main(args):
         args.params = args.params_file.readline().strip().split(',')
         for i in xrange(d):
             ax = fig.axes[i]
-            ax.set_title(args.params[i], fontsize='medium')
+            ax.set_title(sanetext(args.params[i]), fontsize='medium')
             idx = range(d)
             del idx[i]
             pcc_results[args.params[i]] = pcc(X[:,i], y, X[:,idx].T) 
@@ -147,7 +148,7 @@ def main(args):
             ax.set_ylabel(r'$<\tau>$ (days)',fontsize=14)
     if args.output is not None:
         for out in args.output:
-            pp.savefig(out, format=fmt(args.output.name))
+            pp.savefig(out, format=fmt(out.name))
     pp.show()
 
 def make_parser():

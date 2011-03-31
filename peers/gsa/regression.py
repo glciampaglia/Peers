@@ -30,7 +30,7 @@ def main(args):
     res = sm.GLS(y, x).fit()
     print res.summary(xname=args.params)
 
-if __name__ == '__main__':
+def make_parser():
     parser = ArgumentParser(description='Computes sensitivity indices using '\
             'multiple linear regression')
     parser.add_argument('input', type=FileType('r'), help='data file.', 
@@ -43,6 +43,9 @@ if __name__ == '__main__':
             '%(metavar)s (default: "%(default)s)"')
     parser.add_argument('-e','--with-error', action='store_true', help='if TRUE'\
             ', interprete last field as measurement standard errors')
+    return parser
+
+if __name__ == '__main__':
     ns = parser.parse_args()
     main(ns)
     

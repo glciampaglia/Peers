@@ -106,7 +106,7 @@ def main(args):
                 print '%g\t%g' % (m, t)
         print
 
-if __name__ == '__main__':
+def make_parser():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument('data', type=FileType('r'), help='data file')
     parser.add_argument('responses', type=int, help='number of response '
@@ -122,5 +122,9 @@ if __name__ == '__main__':
             ', interprete last field as measurement standard errors')
     parser.add_argument('seed', type=int, nargs='?', help='Seed for the '
             'generator of pseudo-random numbers')
+    return parser
+
+if __name__ == '__main__':
+    parser = make_parser()
     ns = parser.parse_args()
     main(ns)
