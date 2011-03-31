@@ -1,6 +1,12 @@
 import sys
 from subprocess import Popen, PIPE
 
+def sanetext(s):
+    '''
+    Sanitize strings to be used for LaTeX processing in plots 
+    '''
+    return s.replace('_', r'\_')
+
 def ttysize():
     '''
     Returns the size of the terminal by calling stty size, or None if the
@@ -21,7 +27,7 @@ _IDS = {}
 
 class IncIDMixin(object):
     '''
-    Mixin for classes with incremental identities. 
+    Mixin for classes with incrementally identified instances
     
     Notes
     -----

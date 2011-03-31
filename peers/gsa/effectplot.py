@@ -13,6 +13,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from string import uppercase
 
 from .utils import SurrogateModel, rect, fmt
+from ..utils import sanetext
 
 lineMarkers = lineMarkers.items()
 lineMarkers = filter(lambda k : k[1] != '_draw_nothing', lineMarkers)
@@ -40,7 +41,7 @@ def maineffect(surrogate, bounds, num=10000):
 
 def twowayeffect(i, j, surrogate, bounds, num=10000):
     if i == j:
-        raise ValueError('please two distinct variables')
+        raise ValueError('please provide two distinct variables')
     bounds = np.asarray(bounds)
     N = len(bounds)
     n = np.arange(N)
@@ -73,7 +74,7 @@ def plotmain(X, Y, names=None, output=None):
     pp.close('all')
     Mi, N, Mo = Y.shape
     rows, cols =rect(Mo)
-    fig = pp.figure(figsize=(4 * cols, 4 * rows))
+    fig = pp.figure(figsize=(6 * cols, 6 * rows))
     for k in xrange(Mo):
         ax = fig.add_subplot(rows, cols, k+1)
         for i, (x, y) in enumerate(zip(X, Y[...,k])):
@@ -81,7 +82,7 @@ def plotmain(X, Y, names=None, output=None):
             l, = pp.plot(x, y, hold=1, color='k', alpha=.75, 
                     marker=lineMarkers[i])
             if names is not None:
-                l.set_label(names[i])
+                l.set_label(sanetext(names[i]))
         pp.xlabel('parameter scaled value', fontsize=14)
         pp.ylabel('main effect', fontsize=14)
     ym, yM = pp.ylim()
@@ -123,7 +124,7 @@ def plottwoway(Xi, Xj, Y, labels=None, incolor=False, output=None):
         surf = ax.plot_surface(Xi, Xj, Y, rstride=1, cstride=1, color='w',
                 antialiased=True, linewidth=1)
     if labels is not None:
-        xlabel, ylabel, zlabel = labels
+        xlabel, ylabel, zlabel = map(sanetext, labels)
         ax.set_xlabel(xlabel, fontsize=14)
         ax.set_ylabel(ylabel, fontsize=14)
         ax.set_zlabel(zlabel, fontsize=14)
@@ -155,7 +156,7 @@ def main(args):
     sm = SurrogateModel.fitGP(X, Y)
     bounds = zip(X.min(axis=0), X.max(axis=0))
     if args.main:
-        Xm, Ym = maineffect(sm, bounds, args.num, args.output)
+        Xm, Ym = maineffect(sm, bounds, args.num)
         plotmain(Xm, Ym, parameters, args.output)
         return Xm, Ym
     elif args.interaction is not None:
