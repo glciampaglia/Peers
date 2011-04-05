@@ -4,7 +4,7 @@
 
 import sys
 from textwrap import wrap
-from argparse import ArgumentParser, Action
+from argparse import ArgumentParser, Action, REMAINDER, _HelpAction
 from peers.utils import ttysize
 
 # TODO: add scripts in peers/fit/
@@ -57,14 +57,19 @@ commands = {
             'peers.diagnostics',
             'plots active users/pages during a simulation'
             ),
-        'help' : (
-            '',
-            'print this help message and exit',
-            )
 }
 
-class _HelpCommandsAction(Action):
+class _HelpCommandsAction(_HelpAction):
+    '''
+    Extended _HelpAction class that prints a list of available commands 
+    '''
     def __call__(self, parser, namespace, values, option_string=None):
+        try:
+            super(_HelpCommandsAction, self).__call__(parser, namespace, values,
+                    option_string)
+        except SystemExit:
+            # catch the SystemExit raised by super-class
+            pass
         print
         print 'Available commands:'
         print
@@ -78,31 +83,31 @@ class _HelpCommandsAction(Action):
                 for l in lines[1:]:
                     print ' ' * (M + len(sep) + 1) + l
         print
+        sys.exit(2)
 
 def make_parser():
     parser = ArgumentParser(description=__doc__, add_help=False)
     parser.add_argument('command', choices=commands.keys())
-    parser.add_argument('--help-commands', action=_HelpCommandsAction, 
-            help='list all commands', nargs=0)
+    parser.add_argument('rest', nargs=REMAINDER)
+    parser.add_argument('-h', '--help', action=_HelpCommandsAction, 
+            help='print this message and exits')
     parser.add_argument('-D', '--debug', action='store_true', help='raise '
             'Python exceptions to the console')
     return parser
 
-def main(ns, args):
-    if ns.command == 'help':
-        parser.print_help()
-        parser.exit(2)
+def main(ns):
     cmd, desc = commands[ns.command]
     module = __import__(cmd, fromlist=['*'])
     cmd_parser = module.make_parser()
-    cmd_ns = cmd_parser.parse_args(args)
+    cmd_ns = cmd_parser.parse_args(ns.rest)
     res = module.main(cmd_ns)
 
 if __name__ == '__main__':
     parser = make_parser()
-    ns, args = parser.parse_known_args()
+    ns = parser.parse_args()
+    print ns
     try:
-        main(ns, args)
+        main(ns)
     except:
         ty,val,tb = sys.exc_info()
         if ns.debug:
@@ -111,7 +116,7 @@ if __name__ == '__main__':
             if ty is SystemExit:
                 raise
             if ty is KeyboardInterrupt:
-                print 
+                print '^C'
                 sys.exit(1)
             name = ty.__name__
             parser.error('%s : %s' % (name, val))
