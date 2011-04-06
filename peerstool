@@ -65,6 +65,10 @@ commands = {
             'peers.fit.gpfit1d',
             'fits data to a GP surrogate model'
             ),
+        'sigmoid' : (
+            'peers.fit.sigmoid',
+            'fits data to a sigmoid function'
+        )
 }
 
 class _HelpCommandsAction(_HelpAction):

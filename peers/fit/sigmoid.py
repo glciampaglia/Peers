@@ -3,7 +3,10 @@
 # encoding: utf-8
 # author: Giovanni Luca Ciampaglia <ciampagg@usi.ch>
 
-''' Fits data to a sigmoid function by least squares. '''
+''' 
+Fits data to a sigmoid function by least squares. By default will fit data
+generated from a random sigmoid model 
+'''
 
 from __future__ import division
 import re
@@ -14,17 +17,7 @@ import matplotlib.pyplot as pp
 from argparse import ArgumentParser, FileType
 from datetime import datetime
 
-def ttysize():
-    import subprocess as sp
-    try:
-        size = sp.Popen('stty size'.split(), stdout=sp.PIPE, 
-                stderr=sp.PIPE).communicate()[0].strip()
-        return map(int, size.split(' '))
-    except:
-        return 45,85
-
-def fmt(f):
-    return re.search('\.(\w+)$', f.name).group()[1:]
+from ..utils import ttysize, fmt
 
 def sigm(t,a,b,l,c):
     '''
@@ -185,21 +178,21 @@ def plot_fit(x,y,r,p,truep=None,output=None):
     pp.show()
 
 def main(args):
-    if ns.input is not None:
-        data = np.loadtxt(ns.input, delimiter=ns.delimiter).T
-        if ns.use_errors:
+    if args.input is not None:
+        data = np.loadtxt(args.input, delimiter=args.delimiter).T
+        if args.use_errors:
             x, y, s = data[:3]
             p, r = fit(x, y, s)
         else:
             x, y = data[:2]
             p, r = fit(x, y)
-        plot_fit(x, y, r, p, output=ns.output)
+        plot_fit(x, y, r, p, output=args.output)
     else:
         x, y, s, tp = test_data()
         p, r = fit(x, y, s)
-        plot_fit(x, y, r, p, tp, output=ns.output)
+        plot_fit(x, y, r, p, tp, output=args.output)
 
-if __name__ == '__main__':
+def make_parser():
     parser = ArgumentParser(description=__doc__,
             epilog='With no option, fits data sampled from a random sigmoid.')
     parser.add_argument('-i', '--input', type=FileType('r'), help='input data',
@@ -210,6 +203,10 @@ if __name__ == '__main__':
             ' input data field contains data standard deviations.')
     parser.add_argument('-o', '--output', type=FileType('w'), help='save figure'
             ' to %(metavar)s', metavar='FILE')
+    return parser
+
+if __name__ == '__main__':
+    parser = make_parser()
     ns = parser.parse_args()
     main(ns)
 
