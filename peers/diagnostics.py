@@ -88,7 +88,7 @@ def plot_main(args):
         pp.ylim(ym, yM + .15 * ys)
     pp.xlabel('time (days)', fontsize=16)
     if args.rescale is not None:
-        pp.ylabel(r'scaled lifetime $\tau / <\tau>$', fontsize=16)
+        pp.ylabel(r'scaled number of user $N_u / \overline{N_u}$', fontsize=16)
     else:
         pp.ylabel(r'lifetime $\tau$', fontsize=16)
     pp.draw()
