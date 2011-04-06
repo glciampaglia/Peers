@@ -57,6 +57,14 @@ commands = {
             'peers.diagnostics',
             'plots active users/pages during a simulation'
             ),
+        'gmm' : (
+            'peers.fit.gmm',
+            'fits data to a GMM'
+            ),
+        'gpfit1d' : (
+            'peers.fit.gpfit1d',
+            'fits data to a GP surrogate model'
+            ),
 }
 
 class _HelpCommandsAction(_HelpAction):
