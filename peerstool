@@ -99,13 +99,13 @@ def main(ns):
     cmd, desc = commands[ns.command]
     module = __import__(cmd, fromlist=['*'])
     cmd_parser = module.make_parser()
+    cmd_parser.prog += ' ' + ns.command
     cmd_ns = cmd_parser.parse_args(ns.rest)
     res = module.main(cmd_ns)
 
 if __name__ == '__main__':
     parser = make_parser()
     ns = parser.parse_args()
-    print ns
     try:
         main(ns)
     except:
