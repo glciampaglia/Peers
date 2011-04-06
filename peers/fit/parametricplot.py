@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 '''
-Performs a parametric plot of input data
+Performs a parametric plot of a GMM sufficient statistics 
 '''
 
 import re
@@ -9,8 +9,7 @@ from argparse import ArgumentParser, FileType
 import numpy as np
 import matplotlib.pyplot as pp
 
-def fmt(f):
-    return re.search('\.(\w+)$', f.name).group()[1:]
+from ..utils import fmt
 
 def plot(data):
     pp.close('all')
@@ -31,7 +30,7 @@ def add_plot(x, y, xlab, ylab, **kwargs):
     ax.set_ylabel(ylab, fontsize=14)
     pp.draw()
 
-if __name__ == '__main__':
+def make_parser():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument('data', type=FileType('r'), help='data file')
     parser.add_argument('-m', '--model', metavar='FILE', help='load GP models '
@@ -39,8 +38,15 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--delimiter', default=',', help='data fields '
             'delimiter (default: "%(default)s").', metavar='CHAR')
     parser.add_argument('-o', '--output', type=FileType('w'), help='output file')
-    ns = parser.parse_args()
-    data = np.loadtxt(ns.data, delimiter=ns.delimiter).T
+    return parser
+
+def main(args):
+    data = np.loadtxt(args.data, delimiter=args.delimiter).T
     plot(data)
-    if ns.output is not None:
-        pp.savefig(ns.output, format=fmt(ns.output)) 
+    if args.output is not None:
+        pp.savefig(args.output, format=fmt(args.output)) 
+
+if __name__ == '__main__':
+    parser = make_parser()
+    ns = parser.parse_args()
+    main(ns)

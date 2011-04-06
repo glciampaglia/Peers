@@ -7,7 +7,6 @@ from textwrap import wrap
 from argparse import ArgumentParser, Action, REMAINDER, _HelpAction
 from peers.utils import ttysize
 
-# TODO: add scripts in peers/fit/
 commands = {
         'peers' : (
             'peers.peers', 
@@ -68,7 +67,11 @@ commands = {
         'sigmoid' : (
             'peers.fit.sigmoid',
             'fits data to a sigmoid function'
-        )
+        ),
+        'parametric_plot' : (
+            'peers.fit.parametricplot',
+            'produces a parametric plot of GMM sufficient statistics'
+        ),
 }
 
 class _HelpCommandsAction(_HelpAction):
