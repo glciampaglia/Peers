@@ -5,10 +5,16 @@
 
 ''' Latin Hypercube Designs. © 2010 Giovanni Luca Ciampaglia '''
 
+# TODO: implement a simulated annealing procedure for finding a maximin design
+# (see Morris, M. and Mitchell, T., 1995. Exploratory design for computer
+# experiments. J. Statist. Plann. Inference 43, pp. 381–402.) 
+
 import sys
-from argparse import ArgumentParser, Action
+from argparse import ArgumentParser
 import numpy as np
 from scipy.spatial.distance import pdist
+
+from ..utils import AppendTuple
 
 def _map_to_range(lhd, gr):
     lhd_idx = map(tuple, lhd)
@@ -17,7 +23,7 @@ def _map_to_range(lhd, gr):
         res.append(tuple([ gr[i][k] for i,k in enumerate(idx) ]))
     return np.asarray(res) + np.diff(gr[:,:2],axis=1).T/2
 
-def lhd(m,n,num=None,ranges=None,prng=np.random,maximin=False):
+def lhd(m, n, num=None, ranges=None, prng=np.random, maximin=False):
     """
     latin hypercube design in m dimensions.
 
@@ -90,15 +96,6 @@ def lhd(m,n,num=None,ranges=None,prng=np.random,maximin=False):
             return max_d, max_design
         else:
             return list(lhd_iter)
-
-class AppendTuple(Action):
-    def __call__(self, parser, ns, values, option_string=None):
-        option = getattr(ns, self.dest)
-        if option is None:
-            option = [ tuple(values) ]
-        else:
-            option.append(tuple(values))
-        setattr(ns, self.dest, option)
 
 def make_parser():
     parser = ArgumentParser(description='Latin hypercube sampling')

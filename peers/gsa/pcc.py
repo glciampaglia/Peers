@@ -13,8 +13,7 @@ import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as pp
 
-from .utils import fmt, rect
-from ..utils import sanetext
+from ..utils import sanetext, fmt, rect
 
 # TODO <Fri Mar 25 23:54:07 CET 2011>:
 # - make it compute PCC and produce scatter plots for each response variable

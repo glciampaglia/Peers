@@ -7,7 +7,7 @@ from argparse import ArgumentParser, FileType
 import numpy as np
 
 from ..design.winding import wsinputs
-from .utils import SurrogateModel, gettxtdata
+from ..utils import SurrogateModel, gettxtdata
 
 # TODO: remove
 def makews(data):

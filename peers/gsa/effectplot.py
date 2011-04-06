@@ -12,8 +12,7 @@ from matplotlib.font_manager import FontProperties
 from mpl_toolkits.mplot3d import Axes3D
 from string import uppercase
 
-from .utils import SurrogateModel, rect, fmt
-from ..utils import sanetext
+from ..utils import sanetext, SurrogateModel, rect, fmt
 
 lineMarkers = lineMarkers.items()
 lineMarkers = filter(lambda k : k[1] != '_draw_nothing', lineMarkers)

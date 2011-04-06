@@ -8,6 +8,7 @@ from argparse import ArgumentParser, Action, FileType
 from scipy.stats import distributions
 from subprocess import Popen
 
+# TODO move in utility module at top level
 class GetAttr(Action):
     def __init__(self, instance, **kwargs):
         super(GetAttr, self).__init__(**kwargs)
@@ -20,9 +21,11 @@ class GetAttr(Action):
         else:
             setattr(ns, self.dest, instance_value)
 
+# TODO move it to __doc__
 description = '''reads a collection of parameter points from input and generates
 synthetic simulated data using SciPy distribution'''
 
+# TODO move in utility module at top level
 class FileTypeExt(Action):
     ''' checks extension '''
     def __init__(self, ext=None, mode='r', **kwargs):

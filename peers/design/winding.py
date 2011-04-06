@@ -1,7 +1,9 @@
 ''' winding stairs sampling '''
 
 import numpy as np
-from argparse import ArgumentParser, FileType, Action
+from argparse import ArgumentParser, FileType
+
+from ..utils import AppendRange
 
 def winditer(rows, dims, prng=np.random):
     '''
@@ -63,13 +65,6 @@ def main(args):
             for d in xrange(args.dims):
                 print args.sep.join(map(str,ws[r,d]))
 
-class Append(Action):
-    def __call__(self, parser, ns, values, option_string=None):
-        a, b = values
-        if a > b:
-            parser.error('illegal interval: %g %g' % (a, b))
-        getattr(ns, self.dest).append((a, b))
-
 if __name__ == '__main__':
     parser = ArgumentParser(description='winding stairs sampling.', epilog='by '
             'default, prints tuple of inputs to standard output')
@@ -77,10 +72,10 @@ if __name__ == '__main__':
     parser.add_argument('dims', help='number of variables', type=int, nargs='?')
     parser.add_argument('-s','--seed', help='random number generator\'s seed', 
             type=int)
-    parser.add_argument('-i', '--interval', nargs=2, type=float, action=Append,
-            dest='intervals', metavar='VALUE', default=[], help='set '
-            'the n-th parameter to have values in interval (VALUE, VALUE). '
-            'NOTE: You can pass this option more than once.')
+    parser.add_argument('-i', '--interval', nargs=2, type=float,
+            action=AppendRange, dest='intervals', metavar='VALUE', default=[], 
+            help='set the n-th parameter to have values in interval '
+            '(VALUE, VALUE). NOTE: You can pass this option more than once.')
     parser.add_argument('-d', '--delimiter', dest='sep', default=',', 
             metavar='CHAR', help='output fields are separated by %(metavar)s')
     parser.add_argument('-b', '--binary', dest='binary_file', help='produce '
