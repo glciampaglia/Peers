@@ -1,0 +1,7 @@
+argparse
+scikits.learn
+scikits.statsmodels
+numpy
+scipy
+matplotlib
+nose
