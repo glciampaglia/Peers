@@ -12,7 +12,7 @@ from scikits.learn.mixture import GMM
 from scipy.stats import norm
 import matplotlib.pyplot as pp
 
-from ..utils import CheckDirAction
+from ..utils import CheckDirAction, sanetext, fmt
 
 # TODO <Tue Apr  5 11:03:34 CEST 2011>:
 # - plot density of individual components and not of mixture
@@ -29,7 +29,8 @@ def gmmpdf(x, means, variances, weights):
 
 def plot(fn, data, model, bins, **params):
     fig = pp.figure()
-    _, edges, _ = pp.hist(data, bins=bins, figure=fig, normed=1, label='data')
+    _, edges, _ = pp.hist(data, bins=bins, figure=fig, normed=1, label='data',
+            fc='w')
     xmin, xmax = edges[0], edges[-1]
     xi = np.atleast_2d(np.linspace(xmin, xmax, 1000)).T
     means = model.means.ravel()
@@ -37,15 +38,16 @@ def plot(fn, data, model, bins, **params):
     pi = gmmpdf(xi, means, variances, model.weights)
     pp.plot(xi, pi, 'r-', figure=fig, label='GMM fit')
     pp.xlabel(r'$u = \mathrm{log}(\tau)$ (days)', fontsize=16)
-    pp.ylabel(r'Probability Density $p(x)$')
+    pp.ylabel(r'Probability Density $p(x)$',fontsize=16)
     pp.legend(loc='upper left')
     if 'confidence' in params:
-        title = r'%s, $\varepsilon = %g$' % (fn, params['confidence'])
+        c = sanetext(params['confidence'])
+        title = r'%s, $\varepsilon = %s$' % (sanetext(fn), c)
     else:
-        title = fn.replace('_','\_')
+        title = sanetxt(fn)
     pp.title(title)
     pp.draw()
-    pp.savefig(fn, format=os.path.splitext(fn)[1] or 'pdf')
+    pp.savefig(fn, format=fmt(fn, 'pdf'))
     pp.close()
 
 def main(args):
@@ -98,8 +100,6 @@ def make_parser():
             'data')
     parser.add_argument('-d', '--delimiter', default=',', help='Data files index'
             ' has fields separated by %(metavar)s.', dest='sep', metavar='CHAR')
-    parser.add_argument('-v', '--verbose', action='store_true', help='Be '
-            'verbose. Warn when encountering empty data files.')
     parser.add_argument('-b', '--bins', type=int, metavar='NUM', help='Number '
             'of histogram bins to plot', default=10)
     parser.add_argument('-n', '--names', type=FileType('r'), help='Parameter '
