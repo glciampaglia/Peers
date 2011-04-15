@@ -11,14 +11,10 @@ import numpy as np
 from scikits.learn.mixture import GMM
 from scipy.stats import norm
 import matplotlib.pyplot as pp
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib import cm
 
 from ..utils import CheckDirAction, sanetext, fmt
-
-# TODO <Tue Apr  5 11:03:34 CEST 2011>:
-# - plot density of individual components and not of mixture
-# - add subplot like in R's histogram function with vertical lines for each
-#   observation. Colors of lines are mapped on the a scale red to blue (or
-#   whatever color is chosen for the density lines of the components.
 
 def gmmpdf(x, means, variances, weights):
     res = []
@@ -28,18 +24,28 @@ def gmmpdf(x, means, variances, weights):
     return np.sum(np.asarray(res) * weights[:,None], axis=0)
 
 def plot(fn, data, model, bins, **params):
+    '''
+    produces stacked area plots
+    '''
+    global cm
     fig = pp.figure()
-    _, edges, _ = pp.hist(data, bins=bins, figure=fig, normed=1, label='data',
-            fc='w')
+    # transparent histogram
+    _, edges, _ = pp.hist(data, bins=bins, figure=fig, normed=1, fc=(0,0,0,0), 
+            ec='k')
     xmin, xmax = edges[0], edges[-1]
-    xi = np.atleast_2d(np.linspace(xmin, xmax, 1000)).T
+    xi = np.linspace(xmin, xmax, 1000)
     means = model.means.ravel()
     variances = np.asarray(model.covars).ravel()
-    pi = gmmpdf(xi, means, variances, model.weights)
-    pp.plot(xi, pi, 'r-', figure=fig, label='GMM fit')
+    RV = map(norm, means, variances)
+    pi = [ w * rv.pdf(xi) for rv, w in zip(RV, model.weights) ]
+    pi = [ np.zeros(len(xi)) ] + pi
+    pi = np.cumsum(pi, axis=0)
+    # should be photocopy-able
+    colors = cm.Spectral(np.linspace(0,1,len(pi)-1))
+    for i in xrange(1,len(pi)):
+        pp.fill_between(xi, pi[i-1], pi[i], color=colors[i-1])
     pp.xlabel(r'$u = \mathrm{log}(\tau)$ (days)', fontsize=16)
     pp.ylabel(r'Probability Density $p(x)$',fontsize=16)
-    pp.legend(loc='upper left')
     if 'confidence' in params:
         c = sanetext(params['confidence'])
         title = r'%s, $\varepsilon = %s$' % (sanetext(fn), c)
