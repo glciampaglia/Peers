@@ -13,8 +13,11 @@ from scipy.stats import norm
 import matplotlib.pyplot as pp
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import cm
+from mplconf import llncs
 
 from ..utils import CheckDirAction, sanetext, fmt
+
+# TODO with -n/--names should use directly the given names
 
 def gmmpdf(x, means, variances, weights):
     res = []
@@ -28,10 +31,11 @@ def plot(fn, data, model, bins, **params):
     produces stacked area plots
     '''
     global cm
-    fig = pp.figure()
+    fig = pp.figure(figsize=llncs.half_fig_size)
+    axes = pp.axes([0.2, 0.25, 0.75, 0.60])
     # transparent histogram
     _, edges, _ = pp.hist(data, bins=bins, figure=fig, normed=1, fc=(0,0,0,0), 
-            ec='k')
+            ec='k', axes=axes)
     xmin, xmax = edges[0], edges[-1]
     xi = np.linspace(xmin, xmax, 1000)
     means = model.means.ravel()
@@ -41,17 +45,17 @@ def plot(fn, data, model, bins, **params):
     pi = [ np.zeros(len(xi)) ] + pi
     pi = np.cumsum(pi, axis=0)
     # should be photocopy-able
-    colors = cm.Spectral(np.linspace(0,1,len(pi)-1))
+    colors = cm.YlGnBu(np.linspace(0,1,len(pi)-1)*(1- 1.0/len(pi))) 
     for i in xrange(1,len(pi)):
         pp.fill_between(xi, pi[i-1], pi[i], color=colors[i-1])
-    pp.xlabel(r'$u = \mathrm{log}(\tau)$ (days)', fontsize=16)
-    pp.ylabel(r'Probability Density $p(x)$',fontsize=16)
+    pp.xlabel(r'$u = \mathrm{log}(\tau)$ (days)')
+    pp.ylabel(r'Prob. Density $p(x)$')
     if 'confidence' in params:
         c = sanetext(params['confidence'])
-        title = r'%s, $\varepsilon = %s$' % (sanetext(fn), c)
+        title = r'$\varepsilon = %g$' % float(c)
     else:
-        title = sanetxt(fn)
-    pp.title(title)
+        title = sanetext(fn)
+    pp.title(title, fontsize='small')
     pp.draw()
     pp.savefig(fn, format=fmt(fn, 'pdf'))
     pp.close()
