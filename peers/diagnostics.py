@@ -133,7 +133,7 @@ def make_parser():
             ' independently to mean over last %(metavar)s observations',
             metavar='NUM')
     parser_b.add_argument('-n', '--annotate', type=int, help='add shaded '
-            'regions at t = %(metavar)d', metavar='NUM')
+            'regions at t = %(metavar)s', metavar='NUM')
     parser_b.set_defaults(action=plot_main)
     return parser
 
