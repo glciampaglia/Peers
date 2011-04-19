@@ -11,6 +11,7 @@ from matplotlib.lines import lineMarkers
 from matplotlib.font_manager import FontProperties
 from mpl_toolkits.mplot3d import Axes3D
 from string import uppercase
+from mplconf import llncs # XXX this is a nasty dependency
 
 from ..utils import sanetext, SurrogateModel, rect, fmt
 
@@ -73,7 +74,7 @@ def plotmain(X, Y, names=None, output=None):
     pp.close('all')
     Mi, N, Mo = Y.shape
     rows, cols =rect(Mo)
-    fig = pp.figure(figsize=(6 * cols, 6 * rows))
+    fig = pp.figure()
     for k in xrange(Mo):
         ax = fig.add_subplot(rows, cols, k+1)
         for i, (x, y) in enumerate(zip(X, Y[...,k])):
@@ -82,21 +83,21 @@ def plotmain(X, Y, names=None, output=None):
                     marker=lineMarkers[i])
             if names is not None:
                 l.set_label(sanetext(names[i]))
-        pp.xlabel('parameter scaled value', fontsize=14)
-        pp.ylabel('main effect', fontsize=14)
+        pp.xlabel('parameter scaled value')
+        pp.ylabel('main effect')
     ym, yM = pp.ylim()
     yl = yM - ym
     if Mo > 1:
         pp.axis('tight')
         pp.ylim(ym, yM + .15 * yl)
         ax.text(0.05, 0.95, uppercase[k], transform=ax.transAxes, 
-                fontsize=16, fontweight='bold', va='top')
+                fontsize='x-large', fontweight='bold', va='top')
     if names is not None:
         pp.axis('tight')
         pp.ylim(ym, yM + .25 * yl)
-        pp.legend(ncol=len(names)/3, loc='upper center', markerscale=.5,
-                prop=FontProperties(size='x-small'))
-    fig.subplots_adjust(wspace=.25, left=.15, right=.95, bottom=.15)
+        pp.legend(ncol=2, loc='upper center', markerscale=.8,
+                prop=FontProperties(size=7), columnspacing=0.1)
+    fig.subplots_adjust(**llncs.axes_dict)
     pp.draw()
     if output is not None:
         pp.savefig(output, format=fmt(output.name))
@@ -113,8 +114,8 @@ def plottwoway(Xi, Xj, Y, labels=None, incolor=False, output=None):
     incolor   - produce a color plot with a color bar
     '''
     pp.close('all')
-    fig = pp.figure()
-    ax = Axes3D(fig)
+    fig = pp.figure(figsize=llncs.half_sq_fig_size)
+    ax = Axes3D(fig, rect=llncs.sq_axes)
     if incolor:
         surf = ax.plot_surface(Xi, Xj, Y, rstride=1, cstride=1, cmap=pp.cm.jet,
                 antialiased=True, linewidth=1)
@@ -124,13 +125,16 @@ def plottwoway(Xi, Xj, Y, labels=None, incolor=False, output=None):
                 antialiased=True, linewidth=1)
     if labels is not None:
         xlabel, ylabel, zlabel = map(sanetext, labels)
-        ax.set_xlabel(xlabel, fontsize=14)
-        ax.set_ylabel(ylabel, fontsize=14)
-        ax.set_zlabel(zlabel, fontsize=14)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_zlabel(zlabel)
     else:
-        ax.set_xlabel('parameter A value', fontsize=14)
-        ax.set_ylabel('parameter B value', fontsize=14)
-        ax.set_zlabel('interaction effect', fontsize=14)
+        ax.set_xlabel('parameter A value')
+        ax.set_ylabel('parameter B value')
+        ax.set_zlabel('interaction effect')
+    for axis in [ax.w_xaxis, ax.w_yaxis, ax.w_zaxis]:
+        for l in axis.get_ticklabels():
+            l.set_fontsize(5)
     pp.draw()
     if output is not None:
         pp.savefig(output, format=fmt(output.name))
