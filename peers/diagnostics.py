@@ -9,6 +9,7 @@ from matplotlib.colors import colorConverter
 import matplotlib.pyplot as pp
 from collections import deque
 import sys
+from mplconf import llncs
 
 from gsa.utils import fmt
 
@@ -66,7 +67,7 @@ def plot_main(args):
             y = y / y[-args.rescale:].mean()
         coll.append(np.c_[x,y])
     fig = pp.figure()
-    ax = pp.subplot(111)
+    ax = pp.axes([0.1, 0.15, 0.85, 0.80])
     lc = LineCollection(coll, 
             colors=colorConverter.to_rgba_array('k' * len(coll), args.alpha))
     ax.add_collection(lc)
@@ -83,14 +84,14 @@ def plot_main(args):
         ys = yM - ym
         xt = args.annotate * .45
         yt = yM + .1 * ys
-        ax.text(xt, yt, 'Transient')
+        ax.text(xt, yt, 'transient', fontsize='small')
         ax.axvspan(0, args.annotate, color='b', alpha=args.alpha/2)
-        pp.ylim(ym, yM + .15 * ys)
-    pp.xlabel('time (days)', fontsize=16)
+        pp.ylim(ym, yM + .2 * ys)
+    pp.xlabel('time (days)')
     if args.rescale is not None:
-        pp.ylabel(r'scaled number of user $N_u / \overline{N_u}$', fontsize=16)
+        pp.ylabel(r'scaled number of users $N_u / \overline{N_u}$')
     else:
-        pp.ylabel(r'lifetime $\tau$', fontsize=16)
+        pp.ylabel(r'number of users $N_u$')
     pp.draw()
     if args.output is not None:
         pp.savefig(args.output, format=fmt(args.output.name))
