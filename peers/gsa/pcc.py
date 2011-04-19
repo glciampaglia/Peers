@@ -12,6 +12,7 @@ from datetime import datetime
 import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as pp
+from mplconf import llncs
 
 from ..utils import sanetext, fmt, rect
 
@@ -124,7 +125,7 @@ def main(args):
         args.params = args.params_file.readline().strip().split(',')
         for i in xrange(d):
             ax = fig.axes[i]
-            ax.set_title(sanetext(args.params[i]), fontsize='medium')
+            ax.set_title(sanetext(args.params[i]), fontsize='small')
             idx = range(d)
             del idx[i]
             pcc_results[args.params[i]] = pcc(X[:,i], y, X[:,idx].T) 
@@ -144,7 +145,7 @@ def main(args):
         if i > 0:
             ax.set_yticklabels([])
         if i == 0:
-            ax.set_ylabel(r'$<\tau>$ (days)',fontsize=14)
+            ax.set_ylabel(r'$<\tau>$ (days)')
     if args.output is not None:
         for out in args.output:
             pp.savefig(out, format=fmt(out.name))
