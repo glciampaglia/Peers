@@ -1,3 +1,4 @@
+mplconf
 argparse
 scikits.learn
 scikits.statsmodels
