@@ -1,6 +1,6 @@
 ''' 
-Development-only distutils setup script. Intended for use with command build_ext
-(possibly with --inplace
+Distutils setup script for development purposes. Use it for building Cython
+extension modules.
 '''
 
 from distutils.core import setup
