@@ -72,6 +72,14 @@ commands = {
             'peers.fit.parametricplot',
             'produces a parametric plot of GMM sufficient statistics'
         ),
+        'indfit' : (
+            'peers.fit.indfit',
+            'model calibration'
+        ),
+        'emresid' : (
+            'peers.fit.emresid',
+            'EM residuals'
+        ),
 }
 
 class _HelpCommandsAction(_HelpAction):

@@ -1,60 +1,23 @@
 #!/usr/bin/python
+# encoding: utf-8
 
-''' 
-----------------------------------------------------
-Indirect inference fit with GMM sufficient statistic
-----------------------------------------------------
+''' Model calibration via indirect inference. Calibration is performed by
+minimization of the distance between the sufficient statistic of a gaussian
+mixture model (GMM), estimated by means of the EM algorithm on the empirical
+data and on simulated data. Gaussian Process approximation of the simulated GMM
+statistic is performed to obtain a smooth function of the model parameters. '''
 
-This program performs the parameter estimation of the Peers model via an
-indirect inference procedure. The statistical feature used for comparison is the
-sufficient statistic of a gaussian mixture model (GMM). The objective function
-to minimize is the distance between the parameters of a GMM estimated on
-empirical data and the parameters of a GMM estimated from the synthetic obtained
-from simulation. Since simulation is expensive, instead of using directly the
-Peers model, we use a surrogate model of the GMM parameters of the simulated
-data, that is, a function mapping values of the parameters of the Peers model to
-value of the sufficient statistic of a GMM -- the GMM parameter obtained from
-estimation via the EM algorithm.
-'''
-
-# TODO <lun 21 mar 2011, 19.02.24, CET>:
-# 1. Check GaussianProcess parameters
-# 2. Also try cubic splines
-# 3. Standardize sufficient statistic in objective function
-# 4. Try also fmin or other optimizers?
+# TODO (in case) standardize sufficient statistic in objective function
 
 from argparse import ArgumentParser, FileType
 import numpy as np
 import matplotlib.pyplot as pp
-from scikits.learn.gaussian_process import GaussianProcess
 from scikits.learn.mixture import GMM
 from scikits.learn.cross_val import LeaveOneOut
-from scipy.optimize import leastsq, fmin
+from scipy.optimize import fmin
+from mplconf import llncs
 
-class Surrogate(object):
-    '''
-    Class for surrogate models as callable instance
-    '''
-    def __init__(self, models):
-        self._models = models
-    @property
-    def models(self):
-        return list(self._models)
-    def __call__(self, x):
-        return np.ravel([ m.predict(x) for m in self._models ])
-
-def fitgp(X,Y, **kwargs):
-    ''' 
-    Fits a GP for each column of Y. Additional keyword arguments are passed
-    to the constructor of scikits.learn.gaussian_processes.GaussianProcess
-    '''
-    N,M = Y.shape
-    models = []
-    for i in xrange(M):
-        gp = GaussianProcess(**kwargs)
-        gp.fit(X,Y[:,i])
-        models.append(gp)
-    return Surrogate(models)
+from ..utils import SurrogateModel, gettxtdata
 
 def fitgmm(data, components, **kwargs):
     '''
@@ -75,54 +38,109 @@ def fitgmm(data, components, **kwargs):
 def fit(args):
     data = np.load(args.data)
     theta = fitgmm(data, args.components)
-    simulations = np.loadtxt(args.simulations, delimiter=args.delimiter)
-    X = simulations[:,:args.parameters]
-    Y = simulations[:,args.parameters:-1]
-    gp = fitgp(X,Y)
-    func = lambda x : gp(x) - theta
-    x0 = X.mean(axis=0)
-    plsq, ier = leastsq(func, x0)
-    print plsq
+    X, Y = gettxtdata(args.simulations, len(theta), delimiter=args.delimiter)
+    xopt = _fit(X, Y, theta, **args.gpparams)
+    print xopt
+
+def _fit(X_sim, Y_sim, Y_fit, **gpparams):
+    '''
+    performs minimization of error between gp fitted with (X_sim,Y_sim) and
+    Y_fit. X_sim are parameter values of the simulation model, Y_sim and Y_fit
+    are parameters from the auxiliary model. Y_sim are estimated from the
+    simulated output data, and Y_fit are estimated from empirical data.
+
+    Parameters
+    ----------
+    X_sim, Y_sim - from simulation
+    Y_fit        - from empirical data
+    
+    Additional keyword arguments are passed to the constructor of
+    scikits.learn.gaussian_process.GaussianProcess
+
+    Returns
+    -------
+    X_fit        - simulation parameters that minimize L2 distance between gp
+                   approximation of empirical data
+    '''
+    gp = SurrogateModel.fitGP(X_sim, Y_sim, **gpparams)
+    func = lambda x : np.sum((gp(x) - Y_fit)**2)
+    x0 = X_sim.mean(axis=0)
+    return fmin(func, x0)
 
 def cross_val(args):
-    simulations = np.loadtxt(args.simulations, delimiter=args.delimiter)
-    X = simulations[:,:args.parameters]
-    Y = simulations[:,args.parameters:-1]
+    N = args.components
+    R = 3 * N # number of parameters in a GMM with N components
+    X, Y = gettxtdata(args.simulations, R, delimiter=args.delimiter)
     cv_result = []
-    for train_index, test_index in LeaveOneOut(len(simulations)):
+    for train_index, test_index in LeaveOneOut(len(X)):
         X_train, X_test = X[train_index], X[test_index]
         Y_train, Y_test = Y[train_index], Y[test_index]
-        gp = fitgp(X_train, Y_train)
-        Y_test = Y_test
-        func = lambda x : gp(x) - Y_test
-        x0 = X_train.mean(axis=0)
-        plsq, ier = fmin(func, x0)
-        print plsq
-        cv_result.append((X_test.item(), plsq))
-    cv_result = np.asarray(cv_result)
-    pp.scatter(cv_result.T[0], cv_result.T[1])
-    pp.draw()
+        xopt = _fit(X_train, Y_train, Y_test, **args.gpparams)
+        cv_result.append(zip(X_test.ravel(), xopt))
+    cvresults = np.asarray(zip(*cv_result))
+    plot(*cvresults)
+
+def plot(*cvresults):
+    for cv in cvresults:
+        fig = pp.figure(figsize=llncs.sq_fig_size)
+        ax = pp.axes([0.1, 0.1, 0.85, 0.85])
+        ax.plot(cv.T[0], cv.T[1], ' o', c='white', figure=fig,
+                axes=ax)
+        ax.plot([0,1],[0,1], 'r-', alpha=.75)
+        pp.xlim(0,1)
+        pp.ylim(0,1)
+        pp.xlabel(r'observed $\varepsilon$')
+        pp.ylabel(r'estimated $\varepsilon$')
+        pp.title('cross-validation with GP')
+        pp.draw()
     pp.show()
 
 def main(args):
-    if args.cross_val:
-        cross_val(args)
-    else:
-        fit(args)
+    args.gpparams = dict(
+            theta0 = args.theta0, 
+            thetaU = args.thetaU, 
+            thetaL = args.thetaL,
+            nugget = args.nugget,
+    )
+    args.func(args)
+
+def make_parser():
+    # common arguments are put in a parent parser 
+    parent = ArgumentParser(add_help=False)
+    parent.add_argument('-p', '--parameters', type=int, help='Number of '
+            'simulation parameters', metavar='NUM', default=1)
+    parent.add_argument('-c', '--components', type=int, help='Number of '
+            'GMM components', metavar='NUM', default=2)
+    parent.add_argument('-d', '--delimiter', default=',', metavar='CHAR',
+            help='input fields separator (default: "%(default)s")')
+    parent.add_argument('-0', '--theta0', type=float, help='GP parameter Theta0'
+            ' (default: %(default)g)', metavar='VALUE')
+    parent.add_argument('-U', '--thetaU', type=float, help='GP parameter ThetaU'
+            ' (default: %(default)g)', metavar='VALUE')
+    parent.add_argument('-L', '--thetaL', type=float, help='GP parameter ThetaL'
+            ' (default: %(default)g)', metavar='VALUE')
+    parent.add_argument('-N', '--nugget', type=float, help='GP parameter nugget'
+            ' (default: %(default)g)', metavar='VALUE')
+    parent.set_defaults(theta0=.1, thetaL=1e-2, thetaU=1, nugget=1e-2)
+# faster default settings, give worse results
+#    parent.set_defaults(theta0=.1, thetaL=None, thetaU=None, nugget=1e-2)
+    # main parser with subparsers (see below)
+    parser = ArgumentParser(description=__doc__, parents=[parent])
+    subparsers = parser.add_subparsers(help='command')
+    # subparser for fitting
+    parser_fit = subparsers.add_parser('fit')
+    parser_fit.add_argument('data', help='empirical data', type=FileType('r'))
+    parser_fit.add_argument('simulations', help='GMM parameters estimated from '
+            'simulation data', type=FileType('r'))
+    parser_fit.set_defaults(func=fit)
+    # subparser for cross-validation
+    parser_cv = subparsers.add_parser('crossval')
+    parser_cv.add_argument('simulations', help='GMM parameters estimated from '
+            'simulation data', type=FileType('r'))
+    parser_cv.set_defaults(func=cross_val)
+    return parser
 
 if __name__ == '__main__':
-    parser = ArgumentParser(description='Indirect inference fit with GMM '
-            'sufficient statistic')
-    parser.add_argument('data', help='empirical data', type=FileType('r'))
-    parser.add_argument('simulations', help='GMM parameters estimated from '
-            'simulation data', type=FileType('r'))
-    parser.add_argument('-p', '--parameters', type=int, help='Number of '
-            'simulation parameters', metavar='NUM', default=1)
-    parser.add_argument('-c', '--components', type=int, help='Number of '
-            'GMM components', metavar='NUM', default=2)
-    parser.add_argument('-d', '--delimiter', default=',', metavar='CHAR',
-            help='input fields separator (default: "%(default)s")')
-    parser.add_argument('-C', '--cross-val', help='perform cross-validation',
-            action='store_true')
+    parser = make_parser()
     ns = parser.parse_args()
     main(ns)

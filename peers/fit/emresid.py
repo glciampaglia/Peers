@@ -13,6 +13,8 @@ from scikits.learn.mixture import GMM
 from argparse import ArgumentParser, FileType
 import matplotlib.pyplot as pp
 
+from ..utils import fmt
+
 def sample_params(args, prng=np.random):
     '''
     Samples parameters for a univariate GMM
@@ -33,6 +35,30 @@ def identify(m,s,p):
     m, s, p = map(np.ravel, (m, s, p))
     idx = m.argsort()
     return m[idx], s[idx], p[idx]
+
+labels = [r'mean $\mu$', r'st. dev. $\sigma$', r'weights $\pi$']
+
+def plot(args, resid):
+    fig = pp.figure(figsize=(11.5,4))
+    for i, (data, name) in enumerate(zip(resid, labels)):
+        ax = fig.add_subplot(1,3,i+1)
+        ax.set_yscale('log')
+        ax.set_xscale('log', basex=2)
+        ax.errorbar(data.T[0], data.T[1], 0.5 * data.T[2], 
+                label=name, marker='o', ls=':')
+        ax.legend(loc='upper right')
+        ax.set_xticklabels(map(int, resid[0,:,0]))
+        ax.set_xlim(data[0,0],data[-1,0])
+        ax.set_ylim(0,1)
+        if i == 0:
+            ax.set_xlabel(r'sample size $T$')
+            ax.set_ylabel(r'average abs. residual $|\xi|$')
+    fig.subplots_adjust(left=.15, right=.95, bottom=.2, top=.8, wspace=.3)
+    pp.draw()
+    if args.output is not None:
+        for out in args.output:
+            pp.savefig(out, format=fmt(out.name, 'pdf'))
+    pp.show()
 
 def main(args):
     prng = np.random.RandomState(args.seed)
@@ -60,34 +86,11 @@ def main(args):
         sresid = (t, np.mean(sresid), np.std(sresid) / nsq)
         presid = (t, np.mean(presid), np.std(presid) / nsq)
         resid.append((mresid, sresid, presid))
-    return np.asarray(zip(*resid))
+    resid = np.asarray(zip(*resid))
+    plot(args, resid)
+    return resid
 
-labels = [r'mean $\mu$', r'st. dev. $\sigma$', r'weights $\pi$']
-
-def plot(args, resid):
-    fig = pp.figure(figsize=(11.5,4))
-    for i, (data, name) in enumerate(zip(resid, labels)):
-        ax = fig.add_subplot(1,3,i+1)
-        ax.set_yscale('log')
-        ax.set_xscale('log', basex=2)
-        ax.errorbar(data.T[0], data.T[1], 0.5 * data.T[2], 
-                label=name, marker='o', ls=':')
-        ax.legend(loc='upper right')
-        ax.set_xticklabels(map(int, resid[0,:,0]))
-        ax.set_xlim(data[0,0],data[-1,0])
-        ax.set_ylim(0,1)
-        if i == 0:
-            ax.set_xlabel(r'sample size $T$')
-            ax.set_ylabel(r'average abs. residual $|\xi|$')
-    fig.subplots_adjust(left=.15, right=.95, bottom=.2, top=.8, wspace=.3)
-    pp.draw()
-    # XXX produces png instead of pdf!
-    if args.output is not None:
-        for out in args.output:
-            pp.savefig(out)
-    pp.show()
-
-if __name__ == '__main__':
+def make_parser():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument('start', type=float, help='sample size start exponent')
     parser.add_argument('num', type=int, help='number of sample sizes')
@@ -105,6 +108,9 @@ if __name__ == '__main__':
             'hyperparameter alpha (default: %(default)s)')
     parser.add_argument('-o', '--output', type=FileType('w'), help='save '\
             'graphics in %(metavar)s', nargs='+', metavar='FILE')
+    return parser
+
+if __name__ == '__main__':
+    parser = make_parser()
     ns = parser.parse_args()
     resid = main(ns)
-    plot(ns, resid)
