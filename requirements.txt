@@ -1,6 +1,7 @@
 mplconf
+ipython==0.10
 argparse
-scikits.learn
+scikits.learn>=0.7
 scikits.statsmodels
 numpy
 scipy
