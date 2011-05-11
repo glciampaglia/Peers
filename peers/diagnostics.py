@@ -9,7 +9,6 @@ from matplotlib.colors import colorConverter
 import matplotlib.pyplot as pp
 from collections import deque
 import sys
-from mplconf import llncs
 
 from gsa.utils import fmt
 

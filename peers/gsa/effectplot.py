@@ -11,7 +11,6 @@ from matplotlib.lines import lineMarkers
 from matplotlib.font_manager import FontProperties
 from mpl_toolkits.mplot3d import Axes3D
 from string import uppercase
-from mplconf import llncs # XXX this is a nasty dependency
 
 from ..utils import sanetext, SurrogateModel, rect, fmt
 
@@ -97,7 +96,8 @@ def plotmain(X, Y, names=None, output=None):
         pp.ylim(ym, yM + .25 * yl)
         pp.legend(ncol=2, loc='upper center', markerscale=.8,
                 prop=FontProperties(size=7), columnspacing=0.1)
-    fig.subplots_adjust(**llncs.axes_dict)
+# XXX provide parameter dict
+#    fig.subplots_adjust()
     pp.draw()
     if output is not None:
         pp.savefig(output, format=fmt(output.name))
@@ -114,8 +114,8 @@ def plottwoway(Xi, Xj, Y, labels=None, incolor=False, output=None):
     incolor   - produce a color plot with a color bar
     '''
     pp.close('all')
-    fig = pp.figure(figsize=llncs.half_sq_fig_size)
-    ax = Axes3D(fig, rect=llncs.sq_axes)
+    fig = pp.figure()
+    ax = Axes3D(fig)
     if incolor:
         surf = ax.plot_surface(Xi, Xj, Y, rstride=1, cstride=1, cmap=pp.cm.jet,
                 antialiased=True, linewidth=1)

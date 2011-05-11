@@ -13,7 +13,6 @@ from scipy.stats import norm
 import matplotlib.pyplot as pp
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import cm
-from mplconf import llncs
 
 from ..utils import CheckDirAction, sanetext, fmt
 
@@ -31,7 +30,7 @@ def plot(fn, data, model, bins, **params):
     produces stacked area plots
     '''
     global cm
-    fig = pp.figure(figsize=llncs.half_fig_size)
+    fig = pp.figure()
     axes = pp.axes([0.2, 0.25, 0.75, 0.60])
     # transparent histogram
     _, edges, _ = pp.hist(data, bins=bins, figure=fig, normed=1, fc=(0,0,0,0), 

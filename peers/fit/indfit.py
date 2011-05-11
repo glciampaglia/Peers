@@ -15,7 +15,6 @@ import matplotlib.pyplot as pp
 from scikits.learn.mixture import GMM
 from scikits.learn.cross_val import LeaveOneOut
 from scipy.optimize import fmin
-from mplconf import llncs
 
 from ..utils import SurrogateModel, gettxtdata
 
@@ -82,7 +81,7 @@ def cross_val(args):
 
 def plot(*cvresults):
     for cv in cvresults:
-        fig = pp.figure(figsize=llncs.sq_fig_size)
+        fig = pp.figure()
         ax = pp.axes([0.1, 0.1, 0.85, 0.85])
         ax.plot(cv.T[0], cv.T[1], ' o', c='white', figure=fig,
                 axes=ax)

@@ -1,4 +1,3 @@
-mplconf
 ipython==0.10
 argparse
 scikits.learn>=0.7
