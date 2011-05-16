@@ -11,13 +11,26 @@ from numpy import get_include
 # C includes
 _I = [ get_include(), 'peers']
 
-setup(
-        cmdclass = { 'build_ext' : build_ext },
-        ext_modules = [
-            Extension("peers.rand", ["peers/rand.pyx"], include_dirs=_I), 
-            Extension("peers.cpeers", ["peers/cpeers.pyx"], include_dirs=_I) 
-        ]
-)
+if __name__ == '__main__':
+    setup(
+            cmdclass = { 'build_ext' : build_ext },
+            ext_modules = [
+                Extension("peers.rand", ["peers/rand.pyx"], include_dirs=_I), 
+                Extension("peers.cpeers", ["peers/cpeers.pyx"], include_dirs=_I),
+                Extension("peers.fit.ctruncated",
+                    [
+                        "peers/fit/ctruncated.pyx", 
+                        "peers/fit/const.c",
+                        "peers/fit/polevl.c",
+                        "peers/fit/expx2.c",
+                        "peers/fit/mtherr.c",
+                        "peers/fit/ndtr.c",
+                    ],
+                    include_dirs= _I + ['peers/fit'],
+                    depends=["peers/fit/mconf.h"]
+                )
+            ]
+    )
 
 # OLD: compile an extension that makes direct calls to randomkit in NumPy. This
 # is supposed to require a copy of Python.pxi in the source tree.

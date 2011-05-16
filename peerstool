@@ -80,6 +80,14 @@ commands = {
             'peers.fit.emresid',
             'EM residuals'
         ),
+        'bootstrap' : (
+            'peers.fit.bootstrap',
+            'GMM fit and bootstrap'
+        ),
+        'truncated' : (
+            'peers.fit.truncated',
+            'truncated GMM fit'
+        )
 }
 
 class _HelpCommandsAction(_HelpAction):

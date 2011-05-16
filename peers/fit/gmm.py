@@ -11,7 +11,6 @@ import numpy as np
 from scikits.learn.mixture import GMM
 from scipy.stats import norm
 import matplotlib.pyplot as pp
-from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import cm
 
 from ..utils import CheckDirAction, sanetext, fmt
@@ -35,7 +34,7 @@ def plot(fn, data, model, bins, **params):
     # transparent histogram
     _, edges, _ = pp.hist(data, bins=bins, figure=fig, normed=1, fc=(0,0,0,0), 
             ec='k', axes=axes)
-    xmin, xmax = edges[0], edges[-1]
+    xmin, xmax = pp.xlim()
     xi = np.linspace(xmin, xmax, 1000)
     means = model.means.ravel()
     variances = np.asarray(model.covars).ravel()
@@ -78,7 +77,7 @@ def main(args):
                 d = np.log(d)
             if len(d):
                 gmm = GMM(args.components)
-                gmm.fit(d)
+                gmm.fit(d, n_iter=100)
                 mu, si, we = map(np.ravel, 
                         [gmm.means, np.asarray(gmm.covars), gmm.weights])
                 idx = mu.argsort()

@@ -24,6 +24,8 @@ def fitgmm(data, components, **kwargs):
     arguments are passed to the constructor of scikits.learn.mixture.GMM.fit
     '''
     gmm = GMM(components)
+    if 'n_iter' not in kwargs:
+        kwargs['n_iter'] = 100
     gmm.fit(data, **kwargs)
     mu, sigma, weights = map(np.ravel, 
             [gmm.means, np.asarray(gmm.covars), gmm.weights])

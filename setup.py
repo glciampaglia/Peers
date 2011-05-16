@@ -21,6 +21,18 @@ setup(
         ext_modules = [
             Extension("peers.rand", ["peers/rand.c"], include_dirs=_I), 
             Extension("peers.cpeers", ["peers/cpeers.c"], include_dirs=_I) 
+            Extension("peers.fit.ctruncated",
+                [
+                    "peers/fit/ctruncated.c", 
+                    "peers/fit/const.c",
+                    "peers/fit/polevl.c",
+                    "peers/fit/expx2.c",
+                    "peers/fit/mtherr.c",
+                    "peers/fit/ndtr.c",
+                ],
+                include_dirs= _I + ['peers/fit'],
+                depends=["peers/fit/mconf.h"]
+            )
         ],
         scripts = ['peerstool'],
 )

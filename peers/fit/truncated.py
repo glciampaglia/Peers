@@ -24,8 +24,11 @@ from ..rand import randwpmf
 # NOTE on Mac OS X inf**2 raises OverflowError.  This is normal. See here:
 # http://bugs.python.org/issue3222
 
-def norm_pdf(x):
-    return np.where(np.isinf(x), 0, _norm_pdf(x))
+if sys.platform == 'darwin':
+    def norm_pdf(x):
+        return np.where(np.isinf(x), 0, _norm_pdf(x))
+else:
+    norm_pdf = _norm_pdf
  
 def tnorm_pdf(x, mu, sigma, bound):
     ''' truncated normal density function '''
@@ -55,13 +58,13 @@ def _loglike(data, weights, mu, sigma, bound):
         tmp[i] = weights[i] * tnorm_pdf(data, mu[i], sigma[i], bound) 
     return np.sum(np.log(np.sum(tmp,axis=0)))
 
-def _responsibilities(data, w, mu, sigma, bound):
+def _responsibilities(data, weights, mu, sigma, bound):
     ''' the E-step of the algorithm '''
     n = len(data)
-    k = len(w)
+    k = len(weights)
     g = np.zeros((k, n))
     for i in xrange(k):
-        g[i] = tnorm_pdf(data,mu[i],sigma[i],bound) * w[i]
+        g[i] = tnorm_pdf(data,mu[i],sigma[i],bound) * weights[i]
     g = g.T / g.sum(axis=0)[:,np.newaxis]
     return g
 
@@ -129,7 +132,7 @@ def _init_EM(data, k, prng=np.random):
         flag = True - np.all(weights > 0)
     return weights, mu, sigma
 
-def EM(data, k, bounds=None, maxiter=100, thresh=1e-2, verbose=False, 
+def EM(data, k, bounds=None, n_iter=100, thresh=1e-2, verbose=False, 
         prng=np.random):
     '''
     Fit a truncated GMM to data using the EM algorithm. 
@@ -139,7 +142,7 @@ def EM(data, k, bounds=None, maxiter=100, thresh=1e-2, verbose=False,
     data    - array (will be truncated within bounds)
     k       - number of components to fit
     bounds  - default: (data.min(), data.max()) 
-    maxiter - maximum number of iterations
+    n_iter  - maximum number of iterations
     thresh  - stop iteration when marginal increment in loglike is below thresh
     verbose - if True, print log-likelihood and prior probabilities
     prng    - instance of numpy.random.RandomState
@@ -157,11 +160,11 @@ def EM(data, k, bounds=None, maxiter=100, thresh=1e-2, verbose=False,
     else:
         bounds = (np.min(data), np.max(data))
     weights, mu, sigma = _init_EM(data, k, prng)
-    loglike = np.zeros((maxiter,))
+    loglike = np.zeros((n_iter,))
     loglike[0] = _loglike(data, weights, mu, sigma, bounds)
     if verbose:
         print "0) LogLike = %g, Priors = %s" % (loglike[0], weights)
-    for i in xrange(1, maxiter):
+    for i in xrange(1, n_iter):
         gamma = _responsibilities(data, weights, mu, sigma, bounds)
         weights, mu, sigma = _maximize(data, mu, sigma, bounds, gamma)
         loglike[i] = _loglike(data, weights, mu, sigma, bounds) 
@@ -238,7 +241,7 @@ class TGMM(object):
         if self.bounds is None:
             self.bounds = (np.min(data), np.max(data))
         if not flag:
-            warn('EM did not converge (niter = %d' % len(ll), 
+            warn('EM did not converge (no. iterations = %d' % len(ll), 
                     category=UserWarning)
     def pdf(self, data):
         b = self.bounds
@@ -319,32 +322,40 @@ def make_parser():
     parser.add_argument('-b', '--bounds', nargs=2, type=float, help='truncates'
             ' data to this interval. (default: takes min and max from data)')
     parser.add_argument('-v', '--verbose', action='store_true')
-    parser.add_argument('--maxiter', type=int, default=100, help='maximum '
+    parser.add_argument('--iterations', type=int, default=100, help='maximum '
             'number of EM iterations (default: %(default)d)')
     parser.add_argument('-l', '--log', action='store_true', help='take log of '
             'data')
     parser.add_argument('--seed', type=int)
+    parser.add_argument('-d', '--delimiter', metavar='CHAR', default=',',
+            help='input file delimiter (default: \'%(default)s\')')
     parser.add_argument('-p', '--plot', action='store_true')
     parser.add_argument('-o', '--outputfile', type=FileType('w'))
     parser.add_argument('-P', '--profile', action='store_true')
     parser.add_argument('-PF', '--prof-file', metavar='FILE', 
             default=os.path.splitext(os.path.basename(__file__))[0]+'.prof')
+    parser.add_argument('--fast', action='store_true', help='Use Cython version')
     return parser
 
+from ctruncated import EM as cEM
+
 def main(args):
+    global EM
     if args.datafile.isatty():
-        data = np.loadtxt(args.datafile)
+        data = np.loadtxt(args.datafile, delimiter=args.delimiter)
     else:
         ext = os.path.splitext(args.datafile.name)[1][1:].lower()
         if ext in ['npy', 'npz']:
             data = np.load(args.datafile)
         else:
-            data = np.loadtxt(args.datafile)
+            data = np.loadtxt(args.datafile, delimiter=args.delimiter)
     if args.log:
         data = np.log(data)
     prng = np.random.RandomState(args.seed)
+    if args.fast:
+        EM = cEM
     weights, means, sigmas, ll, flag = EM(data, args.components, 
-            maxiter=args.maxiter, prng=prng, verbose=args.verbose)
+            n_iter=args.iterations, prng=prng, verbose=args.verbose)
     print
     for i, comp in enumerate(zip(weights, means, sigmas)):
         print 'Component %d:' % (i + 1),
@@ -361,7 +372,7 @@ def main(args):
         tgmm = TGMM(args.components, (np.min(data), np.max(data)))
         tgmm.weights = weights
         tgmm.means = means
-        tgmm.covars = sigmas ^ 2
+        tgmm.covars = sigmas ** 2
         plot(data, tgmm, 50, output=args.outputfile)
     return weights, means, sigmas, ll, flag
 
