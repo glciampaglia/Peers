@@ -24,16 +24,15 @@ def gmmpdf(x, means, variances, weights):
         res.append(norm.pdf(x, m, np.sqrt(v)))
     return np.sum(np.asarray(res) * weights[:,None], axis=0)
 
-def plot(fn, data, model, bins, **params):
+def plot(data, model, bins=10, output=None, **params):
     '''
-    produces stacked area plots
+    produces stacked area plots of density of a GMM
     '''
     global cm
     fig = pp.figure()
-    axes = pp.axes([0.2, 0.25, 0.75, 0.60])
     # transparent histogram
     _, edges, _ = pp.hist(data, bins=bins, figure=fig, normed=1, fc=(0,0,0,0), 
-            ec='k', axes=axes)
+            ec='k')
     xmin, xmax = pp.xlim()
     xi = np.linspace(xmin, xmax, 1000)
     means = model.means.ravel()
@@ -42,7 +41,7 @@ def plot(fn, data, model, bins, **params):
     pi = [ w * rv.pdf(xi) for rv, w in zip(RV, model.weights) ]
     pi = [ np.zeros(len(xi)) ] + pi
     pi = np.cumsum(pi, axis=0)
-    # should be photocopy-able
+    # this colormapping should be photocopy-able
     colors = cm.YlGnBu(np.linspace(0,1,len(pi)-1)*(1- 1.0/len(pi))) 
     for i in xrange(1,len(pi)):
         pp.fill_between(xi, pi[i-1], pi[i], color=colors[i-1])
@@ -51,12 +50,14 @@ def plot(fn, data, model, bins, **params):
     if 'confidence' in params:
         c = sanetext(params['confidence'])
         title = r'$\varepsilon = %g$' % float(c)
-    else:
-        title = sanetext(fn)
-    pp.title(title, fontsize='small')
+        pp.title(title, fontsize='small')
+    elif output is not None:
+        title = sanetext(output.name)
+        pp.title(title, fontsize='small')
     pp.draw()
-    pp.savefig(fn, format=fmt(fn, 'pdf'))
-    pp.close()
+    if output is not None:
+        pp.savefig(output, format=fmt(output.name, 'pdf'))
+    pp.show()
 
 def main(args):
     sep = args.sep
@@ -83,7 +84,7 @@ def main(args):
                 idx = mu.argsort()
                 if args.plot:
                     gfn = os.path.splitext(fn)[0] + os.path.extsep + args.format
-                    plot(gfn, d, gmm, args.bins, **paramsdict)
+                    plot(d, gmm, args.bins, output=gfn, **paramsdict)
                 beta.append(np.hstack([mu[idx], si[idx], we[idx]]))
             else:
                 warn('fn has no data. Skipping.', category=UserWarning)

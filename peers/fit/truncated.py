@@ -15,13 +15,10 @@ from ..utils import sanetext, fmt
 from ..rand import randwpmf
 
 # TODO <Thu May 12 17:17:25 CEST 2011>:
-# compute distribution of estimator using bootstrap
 # plot of distribution of residuals as function of sample size
+# calcola K-S test statistic e p-value usando bootstrapping
 
-#from multiprocessing import Pool,cpu_count
-#from itertools import repeat
-
-# NOTE on Mac OS X inf**2 raises OverflowError.  This is normal. See here:
+# On Mac OS X inf**2 raises OverflowError.  This is normal. See here:
 # http://bugs.python.org/issue3222
 
 if sys.platform == 'darwin':
@@ -282,7 +279,7 @@ class TGMM(object):
             rvs[idx] = samples * s + m
         return rvs.reshape(size)
 
-def plot(data, model, bins, output=None, **params):
+def plot(data, model, bins=10, output=None, **params):
     '''
     produces stacked area plots
     '''
@@ -297,7 +294,7 @@ def plot(data, model, bins, output=None, **params):
             zip(model.weights, model.means, np.sqrt(model.covars)) ]
     pi = [ np.zeros(len(xi)) ] + pi
     pi = np.cumsum(pi, axis=0)
-    # should be photocopy-able
+    # this colormapping should be photocopy-able
     colors = cm.YlGnBu(np.linspace(0,1,len(pi)-1)*(1- 1.0/len(pi))) 
     for i in xrange(1,len(pi)):
         pp.fill_between(xi, pi[i-1], pi[i], color=colors[i-1])
@@ -308,11 +305,11 @@ def plot(data, model, bins, output=None, **params):
         title = r'$\varepsilon = %g$' % float(c)
         pp.title(title, fontsize='small')
     elif output is not None:
-        title = sanetext(fn)
+        title = sanetext(output.name)
         pp.title(title, fontsize='small')
     pp.draw()
     if output is not None:
-        pp.savefig(fn, format=fmt(output.name, 'pdf'))
+        pp.savefig(output, format=fmt(output.name, 'pdf'))
     pp.show()
 
 def make_parser():
