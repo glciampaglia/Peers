@@ -16,25 +16,24 @@ from scikits.learn.mixture import GMM
 from scikits.learn.cross_val import LeaveOneOut
 from scipy.optimize import fmin
 
+from .truncated import TGMM
 from ..utils import SurrogateModel, gettxtdata
 
-def fitgmm(data, components, **kwargs):
+def fitgmm(data, components, truncated=False):
     '''
     Fits a GMM with given number of components to data. Additional keyword
     arguments are passed to the constructor of scikits.learn.mixture.GMM.fit
     '''
-    gmm = GMM(components)
-    if 'n_iter' not in kwargs:
-        kwargs['n_iter'] = 100
-    gmm.fit(data, **kwargs)
-    mu, sigma, weights = map(np.ravel, 
-            [gmm.means, np.asarray(gmm.covars), gmm.weights])
-    idx = mu.argsort()
-    params = np.empty(components*3 - 1)
-    params[:components] = mu[idx]
-    params[components:2*components] = sigma[idx]
-    params[2*components:] = weights[idx][:-1]
-    return params
+    if truncated:
+        model = TGMM(components)
+    else:
+        model = GMM(components)
+    model.fit(data, n_iter=100)
+    means = model.means.ravel()
+    sigmas = np.sqrt(model.covars).ravel()
+    weights = model.weights.ravel()
+    idx = means.argsort()
+    return np.hstack([means[idx], sigmas[idx], weights[idx]])
 
 def fit(args):
     data = np.load(args.data)
@@ -122,6 +121,7 @@ def make_parser():
             ' (default: %(default)g)', metavar='VALUE')
     parent.add_argument('-N', '--nugget', type=float, help='GP parameter nugget'
             ' (default: %(default)g)', metavar='VALUE')
+    parent.add_argument('-t', '--truncated', action='store_true')
     parent.set_defaults(theta0=.1, thetaL=1e-2, thetaU=1, nugget=1e-2)
 # faster default settings, give worse results
 #    parent.set_defaults(theta0=.1, thetaL=None, thetaU=None, nugget=1e-2)

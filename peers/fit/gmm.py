@@ -13,17 +13,10 @@ from scipy.stats import norm
 import matplotlib.pyplot as pp
 from matplotlib import cm
 
+from .truncated import TGMM
 from ..utils import CheckDirAction, sanetext, fmt
 
-# TODO with -n/--names should use directly the given names
-
-def gmmpdf(x, means, variances, weights):
-    res = []
-    x = x.ravel()
-    for m,v in zip(means, variances):
-        res.append(norm.pdf(x, m, np.sqrt(v)))
-    return np.sum(np.asarray(res) * weights[:,None], axis=0)
-
+#TODO: move this function in a separate graphics.py file in the top-level package
 def plot(data, model, bins=10, output=None, **params):
     '''
     produces stacked area plots of density of a GMM
@@ -77,15 +70,21 @@ def main(args):
             if args.log:
                 d = np.log(d)
             if len(d):
-                gmm = GMM(args.components)
-                gmm.fit(d, n_iter=100)
-                mu, si, we = map(np.ravel, 
-                        [gmm.means, np.asarray(gmm.covars), gmm.weights])
-                idx = mu.argsort()
+                if args.truncated:
+                    model = TGMM(args.components)
+                else:
+                    model = GMM(args.components)
+                model.fit(d, n_iter=args.iterations)
+                means = model.means.ravel()
+                sigmas = np.sqrt(model.covars).ravel()
+                weights = model.weights.ravel()
+                idx = means.argsort()
+                b = np.hstack([means[idx], sigmas[idx], weights[idx]])
+                beta.append(b)
                 if args.plot:
-                    gfn = os.path.splitext(fn)[0] + os.path.extsep + args.format
-                    plot(d, gmm, args.bins, output=gfn, **paramsdict)
-                beta.append(np.hstack([mu[idx], si[idx], we[idx]]))
+                    fn1, ext = os.path.splitext(fn)
+                    fn1 += '.' + args.format
+                    plot(d, model, args.bins, output=fn1, **paramsdict)
             else:
                 warn('fn has no data. Skipping.', category=UserWarning)
         if len(beta) == 0:
@@ -105,6 +104,8 @@ def make_parser():
             action=CheckDirAction)
     parser.add_argument('-p', '--plot', action='store_true', help='plot ' 
             'histograms of data with fit')
+    parser.add_argument('-t', '--truncated', action='store_true')
+    parser.add_argument('-i', '--iterations', type=int, default=100)
     parser.add_argument('-l', '--log', action='store_true', help='Take logs of '
             'data')
     parser.add_argument('-d', '--delimiter', default=',', help='Data files index'

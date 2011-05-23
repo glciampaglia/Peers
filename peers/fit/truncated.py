@@ -10,6 +10,7 @@ import os.path
 from warnings import warn
 import matplotlib.pyplot as pp
 from matplotlib import cm
+from datetime import timedelta
 
 from ..utils import sanetext, fmt
 from ..rand import randwpmf
@@ -279,6 +280,7 @@ class TGMM(object):
             rvs[idx] = samples * s + m
         return rvs.reshape(size)
 
+# TODO: merge this with peers.fit.gmm.plot and move it into peers.graphics
 def plot(data, model, bins=10, output=None, **params):
     '''
     produces stacked area plots
@@ -355,11 +357,23 @@ def main(args):
             n_iter=args.iterations, prng=prng, verbose=args.verbose)
     print
     for i, comp in enumerate(zip(weights, means, sigmas)):
-        print 'Component %d:' % (i + 1),
+        print 'Component %d:' % (i + 1)
+        print '---------------'
         print 'prob. = %g, mean = %g, st.dev = %g' % comp
-    print 
+        w, m, c = comp
+        c *= c
+        lnmean = timedelta(days=np.exp(m + c / 2))
+        lnmed = timedelta(days=np.exp(m))
+        lnmod = timedelta(days=np.exp(m - c))
+        lnvar = (np.exp(c) - 1) * np.exp(2 * m + c)
+        lnerr = timedelta(days=np.sqrt(lnvar))
+        print "(Lognorm) mean = %s (1 s.d. = %s)" % (lnmean, lnerr)
+        print "(Lognorm) median = %s, mode = %s" % (lnmed, lnmod)
+        print 
     print 'Data points: %d' % len(data)
     print 'Log-Likelihood: %g' % ll[-1]
+    print 'Minimum value: %s' % timedelta(days=np.exp(data.min()))
+    print 'Maximum value: %s' % timedelta(days=np.exp(data.max()))
     print
     if flag:
         print 'EM converged in %d iterations.' % len(ll)
