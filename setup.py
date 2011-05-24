@@ -20,7 +20,7 @@ setup(
         ],
         ext_modules = [
             Extension("peers.rand", ["peers/rand.c"], include_dirs=_I), 
-            Extension("peers.cpeers", ["peers/cpeers.c"], include_dirs=_I) 
+            Extension("peers.cpeers", ["peers/cpeers.c"], include_dirs=_I),
             Extension("peers.fit.ctruncated",
                 [
                     "peers/fit/ctruncated.c", 
@@ -35,4 +35,13 @@ setup(
             )
         ],
         scripts = ['peerstool'],
+        data_files = [
+            ('scripts', 
+                [ 
+                    'scripts/peers-simulate.sh', 
+                    'scripts/functions.sh', 
+                    'scripts/config.sh'
+                ]
+            ),
+        ]
 )
