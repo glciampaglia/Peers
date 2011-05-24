@@ -1,90 +1,90 @@
+# This file should not be used directly as a script. Rather, source it from the
+# main simulation script
+
 function simulate {
-    if [[ $# < 3 ]] 
-    then
-        echo "syntax: simulate CMD REPS USESSH [ CPUS ]"
-        exit -1
-    fi
-    cmd=$1
-    reps=$2
-    usessh=$3
-    if [[ -z $4 ]]
-    then
-        cpus=2
-    else
-        cpus=$4
-    fi
-    if [[ ! -e sample.txt ]]
-    then
-        echo "sample.txt does not exist!"
-        exit -1
-    fi
-    rm -f cluster.log &>/dev/null
-    # Launch simulation
-    if [[ $usessh = 1 ]]
-    then
-        ipcluster ssh --clusterfile cluster_conf.py 2>&1 >cluster.log &
+    # Bring ipcluster up
+    if [[ $usessh = 1 ]]; then
+        ipcluster ssh --clusterfile $clusterconf 2>&1 >$clusterlog &
         PID=$!
-        echo -n "Waiting for ipcluster ssh ($PID) to start..."
+        echo -n "waiting for ipcluster ssh ($PID) to start..."
     else
-        ipcluster local -n $cpus 2>&1 >cluster.log &
+        ipcluster local -n `cpuno` 2>&1 >$clusterlog &
         PID=$!
-        echo -n "Waiting for ipcluster local ($PID) to start..."
+        echo "waiting for ipcluster local ($PID) to start..."
     fi
     sleep 5
-    peerstool jobs -r $reps "$cmd" < sample.txt | peerstool pexec -v
+    # Launch simulation
+    peerstool jobs -r $reps "$1" < $sample | peerstool pexec -v
+    # Take ipcluster down
     kill -2 $PID
     sleep 5
     kill -CONT $PID &>/dev/null # if kill returns 0 then process is still alive
-    if [[ $? = 0 ]]
-    then
+    if [[ $? = 0 ]]; then
         echo "ipcluster($PID) did not terminate. Stop it manually."
     fi
 }
 
 function makeindex {
-    if [[ $# != 2 ]]
-    then
-        echo 'syntax makeindex SIZE REPS'
-        exit -1
-    fi
-    if [[ ! -e sample.txt ]]
-    then
-        echo "sample.txt does not exist!"
-        exit -1
-    fi
-    size=$1
-    reps=$2
     # Create the index of output files
-    seq 0 $(($size*$reps-1)) | sed -e's/.*/out_&.npy/' > /tmp/index.txt
-    rep_script=$(cat <<EOF
+    tmpindex=`tempfile -p index`
+    tmpsample=`tempfile -p sample`
+    seq 0 $((size*reps-1)) | sed -e"s/.*/$prefix&.npy/" > $tmpindex
+    script=$(cat <<EOF
 import sys
-for l in sys.stdin.readlines():
+for l in sys.stdin:
     for i in xrange($reps):
         print l,
 EOF
 )
-    python -c "$rep_script" < sample.txt > /tmp/sample.txt
-    paste -d, /tmp/sample.txt /tmp/index.txt > index.txt
-    rm -f /tmp/{index,sample}.txt
+    python -c "$script" < $sample > $tmpsample
+    paste -d, $tmpsample $tmpindex > $index
+    rm -f $tmpindex $tmpsample
 }
 
 function compress {
-    if [[ $# = 0 ]]
-    then
-        echo "no files to compress!"
-        exit -1
-    fi
-    files=${@}
-    # Compress all output files plus index, sample, defaults and parameters list 
-    tar cvfz out.tar.gz $files &>/dev/null
+    if [[ $# = 0 ]] ; then return ; fi
+    tar cvfz $prefix.tar.gz $@ >/dev/null
     TAR_ESTAT=$?
-    if [[ $TAR_ESTAT = 0 ]]
-    then
-        echo "All files compressed. Removing intermediate files."
-        rm -f $files
-        echo "Simulation output stored in out.tar.gz."
+    if [[ $TAR_ESTAT = 0 ]] ; then
+        echo "simulation saved in $prefix.tar.gz."
     else
-        echo "Error: tar exited with status $TAR_ESTAT."
-        echo "No intermediate file has been removed."
+        echo "error: tar exited with status $TAR_ESTAT."
     fi
+}
+
+function cpuno {
+    if [[ -e /sys ]]; then
+        cpus=`ls -1 /sys/devices/system/cpu/cpu* | grep -e [0-9]$ | wc -l`
+    elif [[ -e /proc ]]; then
+        cpus=`cat /proc/cpuinfo | grep -e ^processor | wc -l`
+    else
+        echo error: cannot establish number of cpus to use
+        exit 1
+    fi
+    echo $cpus
+}
+
+function printhelp {
+    cat <<EOF
+
+parallel simulation script for \`peerstool' © 2011 Giovanni Luca Ciampaglia
+
+usage: `basename $0` [options]
+
+options are:
+
+-h, --help              print this message and exit
+-r NUM, --reps NUM      execute NUM repetitions
+-p PREF, --prefix PREF  output file names will be prefixed with PREF
+-s, --ssh               call the IPython cluster with ssh mode
+-o, --overwrite         overwrite existing output file
+
+will need the following files in the working dir:
+
+sample.txt          sample file
+defaults            fixed-value options for \`peerstool peer'
+options             sample options for \`peerstool peer'
+cluster_conf.py     (optional) configuration file for \`ipcluster ssh'
+
+EOF
 }
