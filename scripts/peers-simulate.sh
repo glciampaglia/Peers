@@ -77,9 +77,8 @@ options=`<$options`
 outfile="$prefix%(count)s.npy"
 sim_cmd="peerstool peers --fast $options @$defaults"
 lt_cmd="peerstool lt -lL $outfile" # store log-lifetime
-ind_cmd="echo $outfile >> $index"
 
-simulate "$sim_cmd | $lt_cmd && $ind_cmd"
+simulate "$sim_cmd | $lt_cmd"
 makeindex
 compress $prefix*.npy $sample $index $params $defaults $clusterlog
 rm -f $prefix*.npy $index
