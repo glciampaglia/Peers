@@ -26,8 +26,8 @@ function simulate {
 
 function makeindex {
     # Create the index of output files
-    tmpindex=`tempfile -p index`
-    tmpsample=`tempfile -p sample`
+    tmpindex=`mktemp index.XXXXX`
+    tmpsample=`mktemp sample.XXXXX`
     seq 0 $((size*reps-1)) | sed -e"s/.*/$prefix&.npy/" > $tmpindex
     script=$(cat <<EOF
 import sys
