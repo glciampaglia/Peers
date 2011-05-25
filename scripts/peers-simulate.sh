@@ -65,10 +65,6 @@ then
     exit 2
 fi
 
-# blank output and log files
->$clusterlog
->$index
-
 # define simulation parameters 
 size=`wc -l < $sample`
 options=`<$options`

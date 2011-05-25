@@ -43,7 +43,8 @@ EOF
 
 function compress {
     if [[ $# = 0 ]] ; then return ; fi
-    tar cvfz $prefix.tar.gz $@ >/dev/null
+    # -h / --dereference tells tar to dump files being pointed by symlinks
+    tar chvfz $prefix.tar.gz $@ >/dev/null
     TAR_ESTAT=$?
     if [[ $TAR_ESTAT = 0 ]] ; then
         echo "simulation saved in $prefix.tar.gz."
