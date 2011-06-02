@@ -8,7 +8,8 @@ function simulate {
         PID=$!
         echo -n "waiting for ipcluster ssh ($PID) to start..."
     else
-        ipcluster local -n `cpuno` 2>&1 >$clusterlog &
+        [[ -n cpus ]] || cpus=`cpuno`
+        ipcluster local -n $cpus 2>&1 >$clusterlog &
         PID=$!
         echo "waiting for ipcluster local ($PID) to start..."
     fi
@@ -29,15 +30,10 @@ function makeindex {
     tmpindex=`mktemp index.XXXXX`
     tmpsample=`mktemp sample.XXXXX`
     seq 0 $((size*reps-1)) | sed -e"s/.*/$prefix&.npy/" > $tmpindex
-    script=$(cat <<EOF
-import sys
-for l in sys.stdin:
-    for i in xrange($reps):
-        print l,
-EOF
-)
-    python -c "$script" < $sample > $tmpsample
-    paste -d, $tmpsample $tmpindex > $index
+    header=`<$params`,file
+    echo $header > $index
+    replicate $reps < $sample > $tmpsample
+    paste -d, $tmpsample $tmpindex >> $index
     rm -f $tmpindex $tmpsample
 }
 
@@ -55,7 +51,7 @@ function compress {
 
 function cpuno {
     if [[ -e /sys ]]; then
-        cpus=`ls -1 /sys/devices/system/cpu/cpu* | grep -e [0-9]$ | wc -l`
+        cpus=`ls -d1 /sys/devices/system/cpu/cpu* | grep -e [0-9]$ | wc -l`
     elif [[ -e /proc ]]; then
         cpus=`cat /proc/cpuinfo | grep -e ^processor | wc -l`
     else
@@ -77,6 +73,7 @@ options are:
 -h, --help              print this message and exit
 -r NUM, --reps NUM      execute NUM repetitions
 -p PREF, --prefix PREF  output file names will be prefixed with PREF
+-c NUM, --cpus NUM      use NUM cpus (only with local IPython cluster)
 -s, --ssh               call the IPython cluster with ssh mode
 -o, --overwrite         overwrite existing output file
 
@@ -89,3 +86,19 @@ cluster_conf.py     (optional) configuration file for \`ipcluster ssh'
 
 EOF
 }
+
+function replicate {     
+    [[ -n $1 ]] || { echo error: expecting an argument ; exit 1 ; }     
+    num=$1
+    if [[ $((num)) -le 0 ]] ; then
+        echo error: not a number or negative value: $num
+        exit  1
+    fi
+    read;     
+    while [[ -n $REPLY ]] ; do
+        for (( i=0 ; i<$num ; i++ )) ; do
+            echo $REPLY;         
+        done
+        read     
+    done; 
+} 

@@ -5,21 +5,15 @@
 # author: Giovanni Luca Ciampaglia
 # email: ciampagg@usi.ch
 
+# TODO <gio 26 mag 2011, 10.00.34, CEST>: 
+# 1. needs to put a trap for ^C during simulation
+# 2. test simulation returned correctly otherwise exit script w/ error code
+
 # functions
 source functions.sh
 
 # configuration parameters
 source config.sh
-
-# user parameters, default values
-prefix=out # output file will have this prefix
-reps=1 # will perform these many runs for each line in the sample
-usessh=0 # if 1, ipcluster will be called with `ssh` mode, else `local`
-overwrite=0 # if 1, will overwrite the output file, if it exists
-
-# define getopt's option strings
-SHORT_OPTS=r:p:sho
-LONG_OPTS=reps:,prefix:,ssh,help,overwrite
 
 # test we have the right implementation of getopt
 getopt -T
@@ -32,6 +26,7 @@ if [ $? != 0 ] ; then exit 1 ; fi
 # set positional arguments to the parsed string
 eval set -- "$TEMP"
 
+# update variables with value from positional arguments
 while true; do
     case "$1" in
         --) 
@@ -40,6 +35,8 @@ while true; do
             reps=$2 ; shift 2 ;;
         -p|--prefix)
             prefix=$2 ; shift 2 ;;
+        -c|--cpus)
+            cpus=$2 ; shift 2 ;;
         -s|--ssh)
             usessh=1 ; shift ;;
         -o|--overwrite)
@@ -49,7 +46,7 @@ while true; do
     esac;
 done
 
-# test input files exist
+# test that all input files exist
 inputfiles=( $defaults $options $sample $params $clusterconf )
 for file in ${inputfiles[*]}; do
     if [[ ! -e $file ]]; then
@@ -65,17 +62,19 @@ then
     exit 2
 fi
 
-# define simulation parameters 
+# define other simulation parameters 
 size=`wc -l < $sample`
 options=`<$options`
 
-# define command variables
+# define commands to be executed on the cluster
 outfile="$prefix%(count)s.npy"
 sim_cmd="peerstool peers --fast $options @$defaults"
 lt_cmd="peerstool lt -lL $outfile" # store log-lifetime
 
+# GO!
 simulate "$sim_cmd | $lt_cmd"
 makeindex
-compress $prefix*.npy $sample $index $params $defaults $clusterlog
-rm -f $prefix*.npy $index
+# store all array files in an NPZ file
+zip -q $data $prefix*.npy && rm -f $prefix*.npy
+compress $data $index $defaults $clusterlog && rm -f $index $data
 
