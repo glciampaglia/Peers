@@ -14,6 +14,7 @@ from datetime import timedelta
 
 from ..utils import sanetext, fmt
 from ..rand import randwpmf
+from ..graphics import mixturehist
 
 # TODO <Thu May 12 17:17:25 CEST 2011>:
 # plot of distribution of residuals as function of sample size
@@ -280,39 +281,14 @@ class TGMM(object):
             rvs[idx] = samples * s + m
         return rvs.reshape(size)
 
-# TODO: merge this with peers.fit.gmm.plot and move it into peers.graphics
-def plot(data, model, bins=10, output=None, **params):
-    '''
-    produces stacked area plots
-    '''
-    global cm
-    fig = pp.figure()
-    # transparent histogram
-    _, edges, _ = pp.hist(data, bins=bins, figure=fig, normed=1, fc=(0,0,0,0), 
-            ec='k')
-    xmin, xmax = pp.xlim()
-    xi = np.linspace(xmin, xmax, 1000)
-    pi = [ w * tnorm_pdf(xi, m, s, model.bounds) for w, m, s in
-            zip(model.weights, model.means, np.sqrt(model.covars)) ]
-    pi = [ np.zeros(len(xi)) ] + pi
-    pi = np.cumsum(pi, axis=0)
-    # this colormapping should be photocopy-able
-    colors = cm.YlGnBu(np.linspace(0,1,len(pi)-1)*(1- 1.0/len(pi))) 
-    for i in xrange(1,len(pi)):
-        pp.fill_between(xi, pi[i-1], pi[i], color=colors[i-1])
-    pp.xlabel(r'$u = \mathrm{log}(\tau)$ (days)')
-    pp.ylabel(r'Prob. Density $p(x)$')
-    if 'confidence' in params:
-        c = sanetext(params['confidence'])
-        title = r'$\varepsilon = %g$' % float(c)
-        pp.title(title, fontsize='small')
-    elif output is not None:
-        title = sanetext(output.name)
-        pp.title(title, fontsize='small')
-    pp.draw()
-    if output is not None:
-        pp.savefig(output, format=fmt(output.name, 'pdf'))
-    pp.show()
+# needed by plot
+class tnorm(object):
+    def __init__(self, mu, sigma, bounds):
+        self.mu = mu
+        self.sigma = sigma
+        self.bounds = bounds
+    def pdf(self, x):
+        return tnorm_pdf(x, self.mu, self.sigma, self.bounds)
 
 def make_parser():
     parser = ArgumentParser(description=__doc__)
@@ -335,6 +311,27 @@ def make_parser():
             default=os.path.splitext(os.path.basename(__file__))[0]+'.prof')
     parser.add_argument('--fast', action='store_true', help='Use Cython version')
     return parser
+
+def plot(data, model, bins=10, output=None, **params):
+    '''
+    produces stacked area plots
+    '''
+    fig = pp.figure()
+    means = model.means.ravel()
+    deviations = np.sqrt(np.asarray(model.covars).ravel())
+    RV = [ tnorm(m, s, model.bounds) for m,s in zip(means, deviations) ]
+    mixturehist(data, RV, model.weights, figure=fig)
+    pp.xlabel(r'$u = \mathrm{log}(\tau)$ (days)')
+    pp.ylabel(r'Prob. Density $p(x)$')
+    if len(params):
+        title = ', '.join(map(lambda k, v : k + ' = ' + v, params.items()))
+        pp.title(sanetext(title), fontsize='small')
+    elif output is not None:
+        pp.title(sanetext(output.name), fontsize='small')
+    pp.draw()
+    if output is not None:
+        pp.savefig(output, format=fmt(output.name, 'pdf'))
+    pp.show()
 
 from ctruncated import EM as cEM
 
