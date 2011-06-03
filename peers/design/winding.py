@@ -3,7 +3,7 @@
 import numpy as np
 from argparse import ArgumentParser, FileType
 
-from ..utils import AppendRange
+from ..utils import AppendRangeAction
 
 def winditer(rows, dims, prng=np.random):
     '''
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('-s','--seed', help='random number generator\'s seed', 
             type=int)
     parser.add_argument('-i', '--interval', nargs=2, type=float,
-            action=AppendRange, dest='intervals', metavar='VALUE', default=[], 
+            action=AppendRangeAction, dest='intervals', metavar='VALUE', default=[], 
             help='set the n-th parameter to have values in interval '
             '(VALUE, VALUE). NOTE: You can pass this option more than once.')
     parser.add_argument('-d', '--delimiter', dest='sep', default=',', 

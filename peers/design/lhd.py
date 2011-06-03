@@ -14,7 +14,7 @@ from argparse import ArgumentParser
 import numpy as np
 from scipy.spatial.distance import pdist
 
-from ..utils import AppendTuple
+from ..utils import AppendTupleAction
 
 def _map_to_range(lhd, gr):
     lhd_idx = map(tuple, lhd)
@@ -121,7 +121,7 @@ def make_parser():
             '--intervals',
             nargs=2,
             type=float,
-            action=AppendTuple,
+            action=AppendTupleAction,
             metavar='VALUE',
             help='specify interval for i-th dimension. NOTE: can be passed '
             'multiple times',)

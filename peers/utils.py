@@ -1,90 +1,13 @@
 ''' Utility functions and classes '''
 
-# TODO move all Action subclasses into a dedicated module (peers.moreactions ?)
-
 import sys
 import re
 import os.path
 import numpy as np
 from subprocess import Popen, PIPE
 from scikits.learn.gaussian_process import GaussianProcess
-from argparse import Action, _AppendAction, ArgumentError
 
-# TODO add check in __init__ that nargs = 2
-# TODO make it subclass _AppendAction 
-# TODO should raise ArgumentError instead of calling parser.error
-# TODO write __doc__
-class AppendRange(Action):
-    def __call__(self, parser, ns, values, option_string=None):
-        a, b = values
-        if a > b:
-            parser.error('illegal interval: %g %g' % (a, b))
-        getattr(ns, self.dest).append((a, b))
-
-# TODO make it subclass _AppendAction
-# TODO write __doc__
-class AppendTuple(Action):
-    def __call__(self, parser, ns, values, option_string=None):
-        option = getattr(ns, self.dest)
-        if option is None:
-            option = [ tuple(values) ]
-        else:
-            option.append(tuple(values))
-        setattr(ns, self.dest, option)
-
-class AppendMaxAction(_AppendAction):
-    '''
-    Append to an argument up to a specified maximum number of times.
-
-    Pass argument `maxlen` to ArgumentParser.add_argument or it will raise a
-    ValueError.
-    '''
-    def __init__(self,
-                 option_strings,
-                 dest,
-                 nargs=None,
-                 const=None,
-                 default=None,
-                 type=None,
-                 choices=None,
-                 required=False,
-                 help=None,
-                 metavar=None,
-                 maxlen=None):
-        if int(maxlen) == maxlen and maxlen > 0:
-            self.maxlen = maxlen
-        else:
-            raise ValueError('maxlen parameter must be an integer: %s' % maxlen)
-        super(AppendMaxAction, self).__init__(
-            option_strings=option_strings,
-            dest=dest,
-            nargs=nargs,
-            const=const,
-            default=default,
-            type=type,
-            choices=choices,
-            required=required,
-            help=help,
-            metavar=metavar)
-    def __call__(self, parser, namespace, values, option_string=None):
-        items = getattr(namespace, self.dest) or []
-        if len(items) < self.maxlen:
-            super(AppendMaxAction, self).__call__(
-                    parser, 
-                    namespace, 
-                    values, 
-                    option_string)
-        else:
-            raise ArgumentError(self, 'this option cannot be specified more than %d'
-                    ' times' % self.maxlen)
-
-# TODO should raise ArgumentError instead of calling parser.error
-# TODO write __doc__
-class CheckDirAction(Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        if not os.path.exists(values) or not os.path.isdir(values):
-            parser.error('%s is not a directory!' % values)
-        setattr(namespace, self.dest, values)
+from .actions import *
 
 _sanetext_pat = re.compile(r'([^\\])_')
 _sanetext_repl = r'\1\_'
