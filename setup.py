@@ -40,7 +40,8 @@ setup(
                 [ 
                     'scripts/peers-simulate.sh', 
                     'scripts/functions.sh', 
-                    'scripts/config.sh'
+                    'scripts/config.sh',
+                    'scripts/convfmt.sh'
                 ]
             ),
         ]
