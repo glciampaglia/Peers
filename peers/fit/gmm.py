@@ -7,19 +7,20 @@ from warnings import warn
 from itertools import groupby
 from argparse import ArgumentParser, FileType 
 import numpy as np
+import matplotlib.pyplot as pp
 from scipy.stats import norm
 from scikits.learn.mixture import GMM
 import csv
 
 from .truncated import TGMM
 from ..graphics import mixturehist
-from ..utils import fmt
+from ..utils import fmt, sanetext
 
 def main(args):
     sniffer = csv.Sniffer()
     dialect = sniffer.sniff(args.index.read(1000))
     args.index.seek(0)
-    reader = csv.DictReader(f, dialect=dialect)
+    reader = csv.DictReader(args.index, dialect=dialect)
     keyfun = lambda k : tuple([ k[var] for var in reader.fieldnames[:-1] ])
     data_archive = np.load(args.data)
     for values, subiter in groupby(reader, keyfun):
@@ -54,7 +55,7 @@ def main(args):
             continue
         beta = np.asarray(beta).mean(axis=0)
         out = values + tuple(beta)
-        print sep.join(['%s'] * len(out)) % out
+        print ','.join(['%s'] * len(out)) % out
 
 def plot(data, model, bins=10, output=None, **params):
     '''
@@ -69,13 +70,13 @@ def plot(data, model, bins=10, output=None, **params):
     pp.xlabel(r'$u = \mathrm{log}(\tau)$ (days)')
     pp.ylabel(r'Prob. Density $p(x)$')
     if len(params):
-        title = ', '.join(map(lambda k, v : k + ' = ' + v, params.items()))
+        title = ', '.join(map(lambda k : ' = '.join(k), params.items()))
         pp.title(sanetext(title), fontsize='small')
     elif output is not None:
         pp.title(sanetext(output.name), fontsize='small')
     pp.draw()
     if output is not None:
-        pp.savefig(output, format=fmt(output.name, 'pdf'))
+        pp.savefig(output, format=fmt(output, 'pdf'))
     pp.show()
 
 def make_parser():
