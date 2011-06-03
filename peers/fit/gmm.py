@@ -12,7 +12,7 @@ from scipy.stats import norm
 from scikits.learn.mixture import GMM
 import csv
 
-from .truncated import TGMM
+from .truncated import TGMM, plot as plottruncated
 from ..graphics import mixturehist
 from ..utils import fmt, sanetext
 
@@ -45,9 +45,10 @@ def main(args):
                 if args.plot:
                     fn, ext = os.path.splitext(row['file'])
                     fn += '.' + args.format
-                    params = dict(row)
-                    del params['file']
-                    plot(d, model, args.bins, output=fn, **params)
+                    if args.truncated:
+                        plottruncated(d, model, args.bins, output=fn)
+                    else:
+                        plot(d, model, args.bins, output=fn, **params)
             else:
                 warn('no data: %s' % row['file'], category=UserWarning)
         if len(beta) == 0:

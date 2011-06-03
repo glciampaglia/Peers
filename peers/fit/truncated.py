@@ -305,7 +305,7 @@ def make_parser():
     parser.add_argument('-d', '--delimiter', metavar='CHAR', default=',',
             help='input file delimiter (default: \'%(default)s\')')
     parser.add_argument('-p', '--plot', action='store_true')
-    parser.add_argument('-o', '--outputfile', type=FileType('w'))
+    parser.add_argument('-o', '--outputfile')
     parser.add_argument('-P', '--profile', action='store_true')
     parser.add_argument('-PF', '--prof-file', metavar='FILE', 
             default=os.path.splitext(os.path.basename(__file__))[0]+'.prof')
@@ -324,13 +324,13 @@ def plot(data, model, bins=10, output=None, **params):
     pp.xlabel(r'$u = \mathrm{log}(\tau)$ (days)')
     pp.ylabel(r'Prob. Density $p(x)$')
     if len(params):
-        title = ', '.join(map(lambda k, v : k + ' = ' + v, params.items()))
+        title = ', '.join(map(lambda item : ' = '.join(item), params.items()))
         pp.title(sanetext(title), fontsize='small')
     elif output is not None:
-        pp.title(sanetext(output.name), fontsize='small')
+        pp.title(sanetext(output), fontsize='small')
     pp.draw()
     if output is not None:
-        pp.savefig(output, format=fmt(output.name, 'pdf'))
+        pp.savefig(output, format=fmt(output, 'pdf'))
     pp.show()
 
 from ctruncated import EM as cEM
