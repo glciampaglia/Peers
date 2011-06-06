@@ -2,6 +2,7 @@
 
 '''Reduction script for Gaussian Mixture Model (GMM) parameter estimation. '''
 
+import sys
 import os.path
 from warnings import warn
 from itertools import groupby
@@ -57,6 +58,7 @@ def main(args):
         beta = np.asarray(beta).mean(axis=0)
         out = values + tuple(beta)
         print ','.join(['%s'] * len(out)) % out
+        sys.stdout.flush()
 
 def plot(data, model, bins=10, output=None, **params):
     '''

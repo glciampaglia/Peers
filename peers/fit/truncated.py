@@ -232,7 +232,8 @@ class TGMM(object):
         fits TGMM to data using the EM algorithm. Additional keyword arguments
         are passed to EM.
         '''
-        weights, means, sigmas, ll, flag = EM(data, self.components, self.bounds, 
+        # using fast Cython implementation by default
+        weights, means, sigmas, ll, flag = cEM(data, self.components, self.bounds, 
                 **kwargs)
         self.weights = weights
         self.means = means

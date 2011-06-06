@@ -8,16 +8,33 @@ data and on simulated data. Gaussian Process approximation of the simulated GMM
 statistic is performed to obtain a smooth function of the model parameters. '''
 
 # TODO (in case) standardize sufficient statistic in objective function
+# TODO aggiungi standard error calcolato con bootstrap
 
+import csv
+from datetime import datetime
 from argparse import ArgumentParser, FileType
 import numpy as np
 import matplotlib.pyplot as pp
 from scikits.learn.mixture import GMM
 from scikits.learn.cross_val import LeaveOneOut
 from scipy.optimize import fmin
+from scipy.stats import linregress
 
 from .truncated import TGMM
-from ..utils import SurrogateModel, gettxtdata
+from ..utils import SurrogateModel, gettxtdata, sanetext, rect, fmt
+
+def _ppdict(d):
+    return ', '.join(map(lambda k : '%s : %s' % k, d.items()))
+
+def print_info(args, cv=False):
+    print
+    print 'Command: %s' % 'cross-validation' if cv else 'fit'
+    print 'Data set: %s' % args.datasetname
+    print 'Date: %s' % datetime.now()
+    print 'Truncated: %s' % 'yes' if args.truncated else 'no'
+    print 'GMM Components: %d' % args.components
+    print 'GP parameters: %s' % _ppdict(args.gpparams)
+    print
 
 def fitgmm(data, components, truncated=False):
     '''
@@ -40,6 +57,10 @@ def fit(args):
     theta = fitgmm(data, args.components)
     X, Y = gettxtdata(args.simulations, len(theta), delimiter=args.delimiter)
     xopt = _fit(X, Y, theta, **args.gpparams)
+    args.datasetname = args.data.name
+    print_info(args)
+    for x, name in zip(xopt, args.paramnames):
+        print '%s : %.5g' % (x, name)
     print xopt
 
 def _fit(X_sim, Y_sim, Y_fit, **gpparams):
@@ -71,28 +92,45 @@ def cross_val(args):
     N = args.components
     R = 3 * N # number of parameters in a GMM with N components
     X, Y = gettxtdata(args.simulations, R, delimiter=args.delimiter)
-    cv_result = []
+    cv = []
     for train_index, test_index in LeaveOneOut(len(X)):
         X_train, X_test = X[train_index], X[test_index]
         Y_train, Y_test = Y[train_index], Y[test_index]
         xopt = _fit(X_train, Y_train, Y_test, **args.gpparams)
-        cv_result.append(zip(X_test.ravel(), xopt))
-    cvresults = np.asarray(zip(*cv_result))
-    plot(*cvresults)
+        cv.append(zip(X_test.ravel(), xopt))
+    cv = np.asarray(zip(*cv)).swapaxes(1,2)
+    args.datasetname = args.simulations.name
+    report_results(args, *cv)
+    return cv
 
-def plot(*cvresults):
-    for cv in cvresults:
-        fig = pp.figure()
-        ax = pp.axes([0.1, 0.1, 0.85, 0.85])
-        ax.plot(cv.T[0], cv.T[1], ' o', c='white', figure=fig,
-                axes=ax)
-        ax.plot([0,1],[0,1], 'r-', alpha=.75)
-        pp.xlim(0,1)
-        pp.ylim(0,1)
-        pp.xlabel(r'observed $\varepsilon$')
-        pp.ylabel(r'estimated $\varepsilon$')
-        pp.title('cross-validation with GP')
+def report_results(args, *cvresults):
+    print_info(args, cv=True)
+    h, w = rect(args.parameters)
+    fig = pp.figure()
+    for i in xrange(args.parameters):
+        x, y = cvresults[i]
+        name = args.paramnames[i]
+        slope, intercept, r_value, p_value, std_err = linregress(x, y)
+        print '-' * len(name)
+        print name
+        print '-' * len(name)
+        print 'Slope: %.5g, intercept: %.5g, Error: +/- %.5g' % (slope, intercept,
+                std_err)
+        print 'R^2: %.5g, P-value: %.5g' % (r_value ** 2, p_value)
+        print
+        ax = pp.subplot(h,w,i)
+#        ax = pp.axes([0.1, 0.1, 0.85, 0.85])
+        ax.plot(x, y, ' o', c='white', figure=fig, axes=ax)
+        xlim = x.min(), x.max()
+        ax.plot(xlim, xlim, 'r-', alpha=.75)
+        pp.axis('tight')
+        pp.xlabel(r'observed', fontsize='small')
+        pp.ylabel(r'estimated', fontsize='small')
+        pp.title(sanetext(name), fontsize='small')
         pp.draw()
+    fig.subplots_adjust(hspace=.5, wspace=.3)
+    if args.output is not None:
+        pp.savefig(args.output, format=fmt(args.output.name))
     pp.show()
 
 def main(args):
@@ -102,6 +140,15 @@ def main(args):
             thetaL = args.thetaL,
             nugget = args.nugget,
     )
+    # get parameters names
+    if args.index is not None:
+        sniffer = csv.Sniffer()
+        dialect = sniffer.sniff(args.index.read(1000))
+        args.index.seek(0)
+        dreader = csv.DictReader(args.index, dialect=dialect)
+        args.paramnames = dreader.fieldnames
+    else:
+        args.paramnames = [ 'parameter #%d' % i for i in xrange(args.parameters) ]
     args.func(args)
 
 def make_parser():
@@ -122,6 +169,7 @@ def make_parser():
     parent.add_argument('-N', '--nugget', type=float, help='GP parameter nugget'
             ' (default: %(default)g)', metavar='VALUE')
     parent.add_argument('-t', '--truncated', action='store_true')
+    parent.add_argument('-i', '--index', type=FileType('r'), help='index file')
     parent.set_defaults(theta0=.1, thetaL=1e-2, thetaU=1, nugget=1e-2)
 # faster default settings, give worse results
 #    parent.set_defaults(theta0=.1, thetaL=None, thetaU=None, nugget=1e-2)
@@ -138,6 +186,8 @@ def make_parser():
     parser_cv = subparsers.add_parser('crossval')
     parser_cv.add_argument('simulations', help='GMM parameters estimated from '
             'simulation data', type=FileType('r'))
+    parser_cv.add_argument('-o', '--output', type=FileType('w'), metavar='FILE',
+            help='save figure to %(metavar)s')
     parser_cv.set_defaults(func=cross_val)
     return parser
 
