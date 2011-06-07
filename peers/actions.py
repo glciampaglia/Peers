@@ -24,7 +24,7 @@ class AppendRangeAction(_AppendAction):
 class AppendTupleAction(_AppendAction):
     ''' like Append but inserts tuples '''
     def __call__(self, parser, ns, values, option_string=None):
-        super(AppendTupleAction, self).__call__(parser, namespace, tuple(values),
+        super(AppendTupleAction, self).__call__(parser, ns, tuple(values),
                 option_string)
 
 class AppendMaxAction(_AppendAction):
