@@ -72,8 +72,8 @@ commands = {
             'peers.fit.parametricplot',
             'produces a parametric plot of GMM sufficient statistics'
         ),
-        'indfit' : (
-            'peers.fit.indfit',
+        'calibration' : (
+            'peers.fit.calibration',
             'model calibration'
         ),
         'emresid' : (

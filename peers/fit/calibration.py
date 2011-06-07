@@ -8,8 +8,8 @@ data and on simulated data. Gaussian Process approximation of the simulated GMM
 statistic is performed to obtain a smooth function of the model parameters. '''
 
 # TODO (in case) standardize sufficient statistic in objective function
-# TODO aggiungi standard error calcolato con bootstrap
 
+import sys
 import csv
 from datetime import datetime
 from argparse import ArgumentParser, FileType
@@ -17,11 +17,12 @@ import numpy as np
 import matplotlib.pyplot as pp
 from scikits.learn.mixture import GMM
 from scikits.learn.cross_val import LeaveOneOut
-from scipy.optimize import fmin
+from scipy.optimize import fmin, fmin_l_bfgs_b
 from scipy.stats import linregress
 
 from .truncated import TGMM
-from ..utils import SurrogateModel, gettxtdata, sanetext, rect, fmt
+from .bootstrap import bootstrap, estimate
+from ..utils import SurrogateModel, gettxtdata, sanetext, rect, fmt, AppendTupleAction
 
 def _ppdict(d):
     return ', '.join(map(lambda k : '%s : %s' % k, d.items()))
@@ -31,21 +32,29 @@ def print_info(args, cv=False):
     print 'Command: %s' % 'cross-validation' if cv else 'fit'
     print 'Data set: %s' % args.datasetname
     print 'Date: %s' % datetime.now()
-    print 'Truncated: %s' % 'yes' if args.truncated else 'no'
+    print 'Truncated: %s' % ('yes' if args.truncated else 'no')
     print 'GMM Components: %d' % args.components
     print 'GP parameters: %s' % _ppdict(args.gpparams)
+    print 'Optimization method: %s' % 'fmin_l_bfgs_b' if args.bounds else 'fmin'
     print
+    sys.stdout.flush()
 
-def fitgmm(data, components, truncated=False):
+def fitgmm(data, components, truncated=False, n_iter=100):
     '''
-    Fits a GMM with given number of components to data. Additional keyword
-    arguments are passed to the constructor of scikits.learn.mixture.GMM.fit
+    Fits a GMM with given number of components to data. 
+
+    Parameters
+    ----------
+    data       - data array
+    components - number of mixture components
+    truncated  - if True, use a TGMM, else a GMM
+    n_iter     - maximum number of EM iterations
     '''
     if truncated:
         model = TGMM(components)
     else:
         model = GMM(components)
-    model.fit(data, n_iter=100)
+    model.fit(data, n_iter=n_iter)
     means = model.means.ravel()
     sigmas = np.sqrt(model.covars).ravel()
     weights = model.weights.ravel()
@@ -54,16 +63,41 @@ def fitgmm(data, components, truncated=False):
 
 def fit(args):
     data = np.load(args.data)
-    theta = fitgmm(data, args.components)
-    X, Y = gettxtdata(args.simulations, len(theta), delimiter=args.delimiter)
-    xopt = _fit(X, Y, theta, **args.gpparams)
     args.datasetname = args.data.name
     print_info(args)
-    for x, name in zip(xopt, args.paramnames):
-        print '%s : %.5g' % (x, name)
-    print xopt
+    R = 3 * args.components # number of GMM parameters
+    X, Y = gettxtdata(args.simulations, R, delimiter=args.delimiter)
+    if args.bootstrap:
+        result = bootstrap(_targetfit, args.bootstrap_reps, data,
+                args.bootstrap_size, xsim=X, ysim=Y, bounds=args.bounds, 
+                components=args.components, **args.gpparams)
+        reportfit(args, *zip(*result))
+    else:
+        theta = fitgmm(data, args.components)
+        xopt = _fit(X, Y, theta, **args.gpparams)
+        reportfit(args, *xopt)
 
-def _fit(X_sim, Y_sim, Y_fit, **gpparams):
+def reportfit(args, *fitresults):
+    if args.bootstrap:
+        print 'Bootstrap repetitions: %g' % args.bootstrap_reps
+        if args.bootstrap_size:
+            print 'Bootstrap sample size: %g' % args.bootstrap_size
+        else:
+            print 'Bootstrap sample size: same as dataset'
+    for x, name in zip(fitresults, args.paramnames):
+        if args.bootstrap:
+            xest, xerr, xci = estimate(x)
+            print '%s : %g +/- %g (95%% ci: %g)' % (name, xest, xerr, xci)
+        else:
+            print '%s : %.5g' % (name, x)
+    print
+
+# wrapper function needed by bootstrap
+def _targetfit(sample, xsim, ysim, bounds, components=2, **gpparams):
+    theta = fitgmm(sample, components)
+    return _fit(xsim, ysim, theta, bounds, **gpparams)
+
+def _fit(X_sim, Y_sim, Y_fit, bounds=None, **gpparams):
     '''
     performs minimization of error between gp fitted with (X_sim,Y_sim) and
     Y_fit. X_sim are parameter values of the simulation model, Y_sim and Y_fit
@@ -74,6 +108,7 @@ def _fit(X_sim, Y_sim, Y_fit, **gpparams):
     ----------
     X_sim, Y_sim - from simulation
     Y_fit        - from empirical data
+    bounds       - simulation parameter bounds
     
     Additional keyword arguments are passed to the constructor of
     scikits.learn.gaussian_process.GaussianProcess
@@ -84,11 +119,17 @@ def _fit(X_sim, Y_sim, Y_fit, **gpparams):
                    approximation of empirical data
     '''
     gp = SurrogateModel.fitGP(X_sim, Y_sim, **gpparams)
-    func = lambda x : np.sum((gp(x) - Y_fit)**2)
+    func = lambda x : np.sum((gp(x) - Y_fit) ** 2)
     x0 = X_sim.mean(axis=0)
-    return fmin(func, x0)
+    if bounds is not None:
+        xopt, fopt, d = fmin_l_bfgs_b(func, x0, approx_grad=True, bounds=bounds)
+        return xopt
+    else:
+        return fmin(func, x0)
 
-def cross_val(args):
+def crossval(args):
+    args.datasetname = args.simulations.name
+    print_info(args, cv=True)
     N = args.components
     R = 3 * N # number of parameters in a GMM with N components
     X, Y = gettxtdata(args.simulations, R, delimiter=args.delimiter)
@@ -96,17 +137,17 @@ def cross_val(args):
     for train_index, test_index in LeaveOneOut(len(X)):
         X_train, X_test = X[train_index], X[test_index]
         Y_train, Y_test = Y[train_index], Y[test_index]
-        xopt = _fit(X_train, Y_train, Y_test, **args.gpparams)
+        xopt = _fit(X_train, Y_train, Y_test, bounds=args.bounds, **args.gpparams)
         cv.append(zip(X_test.ravel(), xopt))
     cv = np.asarray(zip(*cv)).swapaxes(1,2)
-    args.datasetname = args.simulations.name
-    report_results(args, *cv)
+    reportcrossval(args, *cv)
     return cv
 
-def report_results(args, *cvresults):
-    print_info(args, cv=True)
+def reportcrossval(args, *cvresults):
     h, w = rect(args.parameters)
-    fig = pp.figure()
+    fw, fh = pp.rcParams['figure.figsize']
+    figsize = h * fh, w * fw
+    fig = pp.figure(figsize=figsize)
     for i in xrange(args.parameters):
         x, y = cvresults[i]
         name = args.paramnames[i]
@@ -134,6 +175,8 @@ def report_results(args, *cvresults):
     pp.show()
 
 def main(args):
+    if (args.bounds is not None) and args.parameters != len(args.bounds):
+        raise ValueError('must specify %d bounds' % args.parameters)
     args.gpparams = dict(
             theta0 = args.theta0, 
             thetaU = args.thetaU, 
@@ -148,7 +191,7 @@ def main(args):
         dreader = csv.DictReader(args.index, dialect=dialect)
         args.paramnames = dreader.fieldnames
     else:
-        args.paramnames = [ 'parameter #%d' % i for i in xrange(args.parameters) ]
+        args.paramnames = [ 'parameter \#%d' % i for i in xrange(args.parameters) ]
     args.func(args)
 
 def make_parser():
@@ -170,6 +213,8 @@ def make_parser():
             ' (default: %(default)g)', metavar='VALUE')
     parent.add_argument('-t', '--truncated', action='store_true')
     parent.add_argument('-i', '--index', type=FileType('r'), help='index file')
+    parent.add_argument('-b', '--bounds', type=float, nargs=2,
+            action=AppendTupleAction, help='simulation parameter bounds')
     parent.set_defaults(theta0=.1, thetaL=1e-2, thetaU=1, nugget=1e-2)
 # faster default settings, give worse results
 #    parent.set_defaults(theta0=.1, thetaL=None, thetaU=None, nugget=1e-2)
@@ -181,6 +226,13 @@ def make_parser():
     parser_fit.add_argument('data', help='empirical data', type=FileType('r'))
     parser_fit.add_argument('simulations', help='GMM parameters estimated from '
             'simulation data', type=FileType('r'))
+    parser_fit.add_argument('-B', '--bootstrap', action='store_true', 
+            help='compute standard error and 95%% confidence interval with '
+            'bootstrap')
+    parser_fit.add_argument('-R', '--bootstrap-reps', type=int, default=10000,
+            help='bootstrap repetitions (default: %(default)d)', metavar='REPS')
+    parser_fit.add_argument('-S', '--bootstrap-size', type=int, help='size of'
+            ' bootstrap samples', metavar='SIZE')
     parser_fit.set_defaults(func=fit)
     # subparser for cross-validation
     parser_cv = subparsers.add_parser('crossval')
@@ -188,7 +240,7 @@ def make_parser():
             'simulation data', type=FileType('r'))
     parser_cv.add_argument('-o', '--output', type=FileType('w'), metavar='FILE',
             help='save figure to %(metavar)s')
-    parser_cv.set_defaults(func=cross_val)
+    parser_cv.set_defaults(func=crossval)
     return parser
 
 if __name__ == '__main__':
