@@ -74,7 +74,7 @@ def fit(args):
         reportfit(args, *zip(*result))
     else:
         theta = fitgmm(data, args.components)
-        xopt = _fit(X, Y, theta, **args.gpparams)
+        xopt = _fit(X, Y, theta, bounds=args.bounds, **args.gpparams)
         reportfit(args, *xopt)
 
 def reportfit(args, *fitresults):
