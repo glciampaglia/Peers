@@ -1,40 +1,55 @@
+import csv
 import os
 import sys
 import numpy as np
 from argparse import ArgumentParser, FileType
 from itertools import groupby
+from pprint import pprint
 
 def main(args):
     ''' reads index, groups by parameters '''
-    if not os.path.exists(args.directory) or not os.path.isdir(args.directory):
-        raise ValueError('not a directory: %s' % args.directory)
-    liter = ( tuple(l.strip().split(args.sep)) for l in iter(args.index.readline,'') )
-    for k, subiter in groupby(liter, lambda k : k[:-1]):
-        lt = []
-        for fn in ( os.path.join(args.directory, s[-1]) for s in subiter ):
-            d = np.load(fn)
-            if len(d):
-                lt.append(d.mean())
-        if len(lt) == 0:
-            lt = [ 0. ]
+    data_archive = np.load(args.data)
+    sniffer = csv.Sniffer()
+    dialect = sniffer.sniff(args.index.read(1000))
+    args.index.seek(0)
+    reader = csv.DictReader(args.index, dialect=dialect)
+    parameters = reader.fieldnames[:-1]
+    if args.error:
+        outfields = parameters + [ 'average', 'error' ]
+    else:
+        outfields = parameters + [ 'average' ]
+    writer = csv.DictWriter(sys.stdout, outfields, dialect=dialect)
+    keyfunc = lambda row : tuple([ row[name] for name in parameters ])
+    writer.writeheader()
+    for k, subiter in groupby(reader, keyfunc):
+        averages = []
+        for row in subiter:
+            fn, _ = os.path.splitext(row['file'])
+            averages.append(data_archive[fn].mean())
+        # averages can contains NaNs
+        nans = np.isnan(averages)
+        if nans.any():
+            averages = averages[True - nans]
             if args.verbose:
-                print >> sys.stderr, 'NO DATA: %s' % ','.join(map(str,k))
-        if args.standard_error:
-            out = k + (np.mean(lt), np.std(lt)/np.sqrt(len(lt)))
-        else:
-            out = k + (np.mean(lt),)
-        fmt = ','.join(['%s'] * len(out))
-        print fmt % out
-        
-if __name__ == '__main__':
+                nn = np.sum(nans)
+                n = len(isnans)
+                print >> sys.stderr, 'error: %s:' % pprint(k)
+                print >> sys.stderr, '  filtering %d/%d NaNs' % (nn, n)
+        outrow = dict(row)
+        del outrow['file']
+        outrow['average'] = np.mean(averages)
+        if args.error:
+            outrow['error'] = np.std(averages) / np.sqrt(len(averages))
+        writer.writerow(outrow)
+     
+def make_parser():
     parser = ArgumentParser(description='computes average lifetime')
     parser.add_argument('index', type=FileType('r'), help='index file')
-    parser.add_argument('-C', '--directory', default='.', help='data directory')
-    parser.add_argument('-d', '--delimiter', default=',', help='delimiter of '\
-            'index lines', dest='sep')
-    parser.add_argument('-s', '--standard-error', action='store_true', 
-            help='output standard error values')
-    parser.add_argument('-v', '--verbose', action='store_true', help='be '
-            'verbose about empty files')
+    parser.add_argument('data', type=FileType('r'), help='data file')
+    parser.add_argument('-e', '--error', action='store_true')
+    parser.add_argument('-v', '--verbose', action='store_true')
+    return parser
+
+if __name__ == '__main__':
     ns = parser.parse_args()
     main(ns)

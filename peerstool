@@ -28,6 +28,10 @@ commands = {
             'peers.gsa.regression',
             'computes standardized regression coefficients sensitivity indices'
             ),
+        'reduce' : (
+            'peers.gsa.reduce',
+            'simple reduction script'
+            ),
         'lhd' : (
             'peers.design.lhd',
             'latin hypercube design'
@@ -56,9 +60,9 @@ commands = {
             'peers.diagnostics',
             'plots active users/pages during a simulation'
             ),
-        'gmm' : (
-            'peers.fit.gmm',
-            'fits data to a GMM'
+        'mixreduce' : (
+            'peers.fit.reduce',
+            'reduction script with mixture models'
             ),
         'gpfit1d' : (
             'peers.fit.gpfit1d',
