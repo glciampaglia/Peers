@@ -14,7 +14,7 @@ from scipy.stats import norm
 from datetime import datetime
 from argparse import ArgumentParser
 
-from .truncated import TGMM # should use EM from ctruncated instead
+from .truncated import TGMM 
 
 # una cosa interessante sarebbe dividere il sample in subsample e poi ciascun
 # processo pesca dal suo sotto sample. Questo permetterebbe di mappare in
@@ -97,10 +97,16 @@ def estimate(x, level=.95):
     ----------
     x     - bootstrap statistics
     level - desired confidence level
+
+    Returns
+    -------
+    est - median of statistics x
+    err - standard error
+    ci  - two-tailed confidence interval
     '''
     if level > 1 or level < 0:
         raise ValueError('confidence level must be within [0,1]: %g' % level) 
-    alpha = norm.ppf(1 - (1 - level) / 2.0) # normal percentile at desired level
+    alpha = norm.ppf(1 - (1 - level) / 2.0) # two-tailed percentile
     est = np.median(x)
     err = np.std(x, ddof=1) / np.sqrt(len(x))
     ci = alpha * np.std(x, ddof=1)
