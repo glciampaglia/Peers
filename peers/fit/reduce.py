@@ -17,11 +17,18 @@ from .truncated import TGMM, plot as plottruncated
 from ..graphics import mixturehist
 from ..utils import fmt, sanetext
 
+_fields = [ 'mean-%d', 'variance-%d', 'weight-%d' ] 
+
 def main(args):
     sniffer = csv.Sniffer()
     dialect = sniffer.sniff(args.index.read(1000))
     args.index.seek(0)
     reader = csv.DictReader(args.index, dialect=dialect)
+    gmmnames = [ [ f % i for i in xrange(args.components) ] for f in fields ]
+    gmmnames = reduce(list.__add__, gmmnames)
+    outfields = reader.fieldnames[:-1] + gmmnames
+    writer = csv.DictWriter(sys.stdout, outfields, dialect=dialect)
+    writer.writeheader()
     keyfun = lambda k : tuple([ k[var] for var in reader.fieldnames[:-1] ])
     data_archive = np.load(args.data)
     for values, subiter in groupby(reader, keyfun):
@@ -56,8 +63,10 @@ def main(args):
             warn('skipping: %s.' % ', '.join(values), category=UserWarning)
             continue
         beta = np.asarray(beta).mean(axis=0)
-        out = values + tuple(beta)
-        print ','.join(['%s'] * len(out)) % out
+        outrow = dict(row)
+        del outrow['file']
+        outrow.update(zip(gmmnames, beta))
+        writer.writerow(outrow)
         sys.stdout.flush()
 
 def plot(data, model, bins=10, output=None, **params):
