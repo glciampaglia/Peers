@@ -3,34 +3,18 @@ Computes main and total interaction effect indices using Winding Stairs (WS)
 sampling and a Gaussian Process (GP) emulator
 '''
 
+import sys
+import csv
 from argparse import ArgumentParser, FileType
 import numpy as np
 
 from ..design.winding import wsinputs
 from ..utils import SurrogateModel, gettxtdata
 
-# TODO: remove
-def makews(data):
-    '''
-    Produces a "Winding Stairs Matrix"
-
-    Parameters
-    ----------
-    data - N points sample
-    '''
-    data = np.atleast_2d(data)
-    if data.ndim > 2:
-        raise ValueError('input is not a 2-d array')
-    N, k = data.shape
-    d = k - 1
-    r = np.floor(N / d) # rows of the W.S. matrix
-    x = data[:,:-1]
-    y = data[:,-1]
-    return x.reshape((r,d,d)), y.reshape((r, d))
-
 def indices(y):
     '''
-    Computes main and total interaction effect indices out of matrix y
+    Computes main and total interaction effect indices from winding stairs (WS)
+    matrix y
     '''
     n, d = y.shape
     main = []
@@ -75,49 +59,51 @@ def indices(y):
     inter = np.asarray(inter) / s
     return main, inter, s
 
-# TODO <Fri Mar 25 23:45:37 CET 2011>: should get names of response variables
-# from command line (or file)
 def main(args):
-    if args.params_file is not None:
-        args.params = args.params_file.readline().strip().split(args.sep)
+    sniffer = csv.Sniffer()
+    dialect = sniffer.sniff(args.data.read(5000))
+    args.data.seek(0)
+    reader = csv.DictReader(args.data, dialect=dialect)
+    paramnames = reader.fieldnames[:-args.responses]
+    responsenames = reader.fieldnames[-args.responses:]
+    args.params = reader.fieldnames
+    args.data.seek(0)
     if args.with_errors:
-        X, Y, _ = gettxtdata(args.data, args.responses, delimiter=args.sep,
-                with_errors=True)
+        X, Y, _ = gettxtdata(args.data, args.responses,
+                delimiter=dialect.delimiter, with_errors=True, skiprows=1)
     else:
-        X, Y = gettxtdata(args.data, args.responses, delimiter=args.sep,
-                with_errors=False)
+        X, Y = gettxtdata(args.data, args.responses,
+                delimiter=dialect.delimiter, with_errors=False, skiprows=1)
     N, M = X.shape
     intervals = zip(X.min(axis=0), X.max(axis=0))
     prng = np.random.RandomState(args.seed)
-    W = wsinputs(args.rows, M, intervals, prng)
+    Winput = wsinputs(args.size, M, intervals, prng)
     sm = SurrogateModel.fitGP(X,Y)
-    YW = np.dstack([ sm(W[i]).T for i in xrange(len(W))]).swapaxes(1,2)
-    for i,yw in enumerate(YW):
-        print '-------------'
-        print 'Parameter %d' % i
-        print '-------------'
-        main, inter, s = indices(yw)
-        print 'Total variance : %g' % s
-        if args.params_file is not None:
-            for p,m,t in zip(args.params, main, inter):
-                print '%s\t%g\t%g' % (p, m, t)
-        else:
-            for m, t in zip(main, inter):
-                print '%g\t%g' % (m, t)
-        print
+    YW = np.dstack([ sm(Winput[i]).T for i in xrange(len(Winput))]).swapaxes(1,2)
+    outnames = [ 'variable', 'variance' ] + paramnames
+    writer = csv.DictWriter(sys.stdout, outnames, dialect=dialect)
+    mainrows = []
+    interrows = []
+    for resp, yw in zip(responsenames, YW):
+        main, inter, totvar = indices(yw)
+        row = { 'variable' : resp, 'variance' : totvar }
+        row.update(zip(paramnames, main))
+        mainrows.append(dict(row))
+        row.update(zip(paramnames, inter))
+        interrows.append(dict(row))
+    print '; main effects'
+    writer.writeheader()
+    writer.writerows(mainrows)
+    print '; interaction effects'
+    writer.writeheader()
+    writer.writerows(interrows)
 
 def make_parser():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument('data', type=FileType('r'), help='data file')
-    parser.add_argument('responses', type=int, help='number of response '
-            'variables (default: %(default)d)', default=1)
-    parser.add_argument('-r', '--rows', help='number of WS rows (default:'
+    parser.add_argument('responses', type=int, help='number of responses')
+    parser.add_argument('-s', '--size', help='number of samples (default:'
             ' %(default)d)', type=int, default=64)
-    parser.add_argument('-p', '--parameters', type=FileType('r'), help='set '\
-            'titles to parameters taken from %(metavar)s', dest='params_file', 
-            metavar='FILE')
-    parser.add_argument('-d', '--delimiter', default=',', help='delimiter of '\
-            'data values', metavar='CHAR', dest='sep')
     parser.add_argument('-e','--with-errors', action='store_true', help='if TRUE'\
             ', interprete last field as measurement standard errors')
     parser.add_argument('seed', type=int, nargs='?', help='Seed for the '
