@@ -20,11 +20,12 @@ from ..utils import fmt, sanetext
 _fields = [ 'mean-%d', 'variance-%d', 'weight-%d' ] 
 
 def main(args):
+    global _fields
     sniffer = csv.Sniffer()
     dialect = sniffer.sniff(args.index.read(1000))
     args.index.seek(0)
     reader = csv.DictReader(args.index, dialect=dialect)
-    gmmnames = [ [ f % i for i in xrange(args.components) ] for f in fields ]
+    gmmnames = [ [ f % i for i in xrange(args.components) ] for f in _fields ]
     gmmnames = reduce(list.__add__, gmmnames)
     outfields = reader.fieldnames[:-1] + gmmnames
     writer = csv.DictWriter(sys.stdout, outfields, dialect=dialect)
