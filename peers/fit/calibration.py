@@ -7,8 +7,6 @@ mixture model (GMM), estimated by means of the EM algorithm on the empirical
 data and on simulated data. Gaussian Process approximation of the simulated GMM
 statistic is performed to obtain a smooth function of the model parameters. '''
 
-# TODO (in case) standardize sufficient statistic in objective function
-
 import sys
 import csv
 from datetime import datetime
@@ -29,13 +27,22 @@ def _ppdict(d):
 
 def print_info(args, cv=False):
     print
-    print 'Command: %s' % 'cross-validation' if cv else 'fit'
+    print 'Command: %s' % ('cross-validation' if cv else 'fit')
     print 'Data set: %s' % args.datasetname
     print 'Date: %s' % datetime.now()
+    print 'Parameter Bounds: %s' % (args.bounds if args.bounds is not None else 'N/A')
     print 'Truncated: %s' % ('yes' if args.truncated else 'no')
     print 'GMM Components: %d' % args.components
+    if args.weights is not None:
+        print 'Weights: %s' % _ppdict(dict(zip(args.auxiliary, args.weights)))
+    else:
+        print 'Weights: N/A'
     print 'GP parameters: %s' % _ppdict(args.gpparams)
-    print 'Optimization method: %s' % 'fmin_l_bfgs_b' if args.bounds else 'fmin'
+    print 'Optimization method: %s' % ('fmin_l_bfgs_b' if args.bounds else 'fmin')
+    print 'Bootstrap: %s' % ( 'yes' if args.bootstrap else 'no')
+    print 'Bootstrap repetitions: %g' % args.bootstrap_reps
+    print 'Bootstrap sample: %s' % (args.bootstrap_size if args.bootstrap_size
+            else 'same as dataset')
     print
     sys.stdout.flush()
 
@@ -66,49 +73,59 @@ def fit(args):
     args.datasetname = args.data.name
     print_info(args)
     R = 3 * args.components # number of GMM parameters
-    X, Y = gettxtdata(args.simulations, R, delimiter=args.delimiter)
+    X, Y = gettxtdata(args.simulations, R, delimiter=args.delimiter, skiprows=1)
+    theta = fitgmm(data, args.components)
+    estval = _fit(X, Y, theta, bounds=args.bounds, weights=args.weights,
+            **args.gpparams)
     if args.bootstrap:
-        result = bootstrap(_targetfit, args.bootstrap_reps, data,
+        bootsample = bootstrap(_targetfit, args.bootstrap_reps, data,
                 args.bootstrap_size, xsim=X, ysim=Y, bounds=args.bounds, 
-                components=args.components, **args.gpparams)
-        reportfit(args, *zip(*result))
+                weights=args.weights, components=args.components, 
+                **args.gpparams)
+        _, esterr, estint = zip(*map(estimate, zip(*bootsample)))
+        reportfit(args, estval, error=esterr, interval=estint)
     else:
-        theta = fitgmm(data, args.components)
-        xopt = _fit(X, Y, theta, bounds=args.bounds, **args.gpparams)
-        reportfit(args, *xopt)
+        reportfit(args, estval)
 
-def reportfit(args, *fitresults):
-    if args.bootstrap:
-        print 'Bootstrap repetitions: %g' % args.bootstrap_reps
-        if args.bootstrap_size:
-            print 'Bootstrap sample size: %g' % args.bootstrap_size
-        else:
-            print 'Bootstrap sample size: same as dataset'
-    for x, name in zip(fitresults, args.paramnames):
-        if args.bootstrap:
-            xest, xerr, xci = estimate(x)
-            print '%s : %g +/- %g (95%% ci: %g)' % (name, xest, xerr, xci)
-        else:
-            print '%s : %.5g' % (name, x)
+def reportfit(args, value, error=None, interval=None, level=95):
+    if error is not None:
+        for name, v, e, i in zip(args.paramnames, value, error, interval):
+            print '%s : %g +/- %g (%d%% ci: %g)' % (name, v, e, level, i)
+    else:
+        for name, v in zip(args.paramnames, value):
+            print '%s : %g +/- N/A (%d%% ci: N/A)' % (name, v)
     print
 
 # wrapper function needed by bootstrap
-def _targetfit(sample, xsim, ysim, bounds, components=2, **gpparams):
+def _targetfit(sample, xsim, ysim, bounds, components=2, weights=None, **gpparams):
     theta = fitgmm(sample, components)
-    return _fit(xsim, ysim, theta, bounds, **gpparams)
+    return _fit(xsim, ysim, theta, bounds, weights, **gpparams)
 
-def _fit(X_sim, Y_sim, Y_fit, bounds=None, **gpparams):
-    '''
-    performs minimization of error between gp fitted with (X_sim,Y_sim) and
-    Y_fit. X_sim are parameter values of the simulation model, Y_sim and Y_fit
-    are parameters from the auxiliary model. Y_sim are estimated from the
-    simulated output data, and Y_fit are estimated from empirical data.
+def _fit(thetasim, betasim, beta, bounds=None, weights=None, fmintries=5, **gpparams):
+    r'''
+    Indirect inference via Gaussian Process approximation. The fitted
+    parameters are the solution to the following minization problem::
+
+    $\min_\theta || \beta - \beta_S \left(\theta\right) ||$
+
+    $\beta$ is a vector of parameters of an auxiliary model, estimated on the
+    empirical data that we want to fit, $\theta$ is the vector of parameters of
+    our simulation model, and $\beta_S\left(\cdot\right)$ is a mapping between
+    simulation parameters and auxiliary parameters. $\beta_S$ is substitude with
+    a GP approximation, which is estimated using training data
+    $\left(\theta^s,\beta^s\right),~~ s=1,\ldots,N$ obtained from simulation.
 
     Parameters
     ----------
-    X_sim, Y_sim - from simulation
-    Y_fit        - from empirical data
-    bounds       - simulation parameter bounds
+    thetasim     - simulation model parameters (training data)
+    betasim      - auxiliary model parameters (training data)
+    beta         - auxiliary model parameters estimated on data
+    bounds       - list of tuples (a,b) with a<b of simulation parameter bounds
+    weights      - weights the contribution of each auxiliary parameter to the
+                   error function. Instead of the simple L2 distance, minimize a
+                   quadratic form W. The weights parameter can be an array (W =
+                   diag(weights)) or define a matrix.
+    fmintries    - try minimization multiple times and take best solution
     
     Additional keyword arguments are passed to the constructor of
     scikits.learn.gaussian_process.GaussianProcess
@@ -118,26 +135,56 @@ def _fit(X_sim, Y_sim, Y_fit, bounds=None, **gpparams):
     X_fit        - simulation parameters that minimize L2 distance between gp
                    approximation of empirical data
     '''
-    gp = SurrogateModel.fitGP(X_sim, Y_sim, **gpparams)
-    func = lambda x : np.sum((gp(x) - Y_fit) ** 2)
-    x0 = X_sim.mean(axis=0)
-    if bounds is not None:
-        xopt, fopt, d = fmin_l_bfgs_b(func, x0, approx_grad=True, bounds=bounds)
-        return xopt
+    gp = SurrogateModel.fitGP(thetasim, betasim, **gpparams)
+    if weights is None:
+        weights = np.eye(len(beta))
+    weights = np.atleast_1d(weights)
+    if weights.ndim == 1:
+        weights = np.diag(weights)
+    elif weights.ndim == 2:
+        N, M = weights.shape
+        if N != M:
+            raise ValueError('weights must be a square array')
     else:
-        return fmin(func, x0)
+        raise ValueError('weights can be a 1D or 2D array')
+    def func(x):
+        d = gp(x) - beta
+        return np.dot(np.dot(d, weights), d.T)
+    P = thetasim.shape[1]
+    range0 = thetasim.ptp(axis=0)
+    m0 = thetasim.min(axis=0)
+    thetasim.min(axis=0)
+    x0 = thetasim.mean(axis=0)
+    xopt_best = None
+    fopt_best = np.inf
+    if bounds is not None:
+        for i in xrange(fmintries):
+            x0 = range0 * np.random.rand(P) + m0 
+            xopt, fopt, d = fmin_l_bfgs_b(func, x0, approx_grad=True, bounds=bounds)
+            if fopt_best > fopt:
+                xopt_best = xopt
+                fopt_best = fopt
+    else:
+        for i in xrange(fmintries):
+            x0 = range0 * np.random.rand(P) + m0 
+            xopt, fopt, calls, flag, vecs = fmin(func, x0, full_output=1, disp=0)
+            if fopt_best > fopt:
+                xopt_best = xopt
+                fopt_best = fopt
+    return xopt_best
 
 def crossval(args):
     args.datasetname = args.simulations.name
     print_info(args, cv=True)
     N = args.components
     R = 3 * N # number of parameters in a GMM with N components
-    X, Y = gettxtdata(args.simulations, R, delimiter=args.delimiter)
+    X, Y = gettxtdata(args.simulations, R, delimiter=args.delimiter, skiprows=1)
     cv = []
     for train_index, test_index in LeaveOneOut(len(X)):
         X_train, X_test = X[train_index], X[test_index]
         Y_train, Y_test = Y[train_index], Y[test_index]
-        xopt = _fit(X_train, Y_train, Y_test, bounds=args.bounds, **args.gpparams)
+        xopt = _fit(X_train, Y_train, Y_test, bounds=args.bounds,
+                weights=args.weights, **args.gpparams)
         cv.append(zip(X_test.ravel(), xopt))
     cv = np.asarray(zip(*cv)).swapaxes(1,2)
     reportcrossval(args, *cv)
@@ -160,7 +207,6 @@ def reportcrossval(args, *cvresults):
         print 'R^2: %.5g, P-value: %.5g' % (r_value ** 2, p_value)
         print
         ax = pp.subplot(h,w,i)
-#        ax = pp.axes([0.1, 0.1, 0.85, 0.85])
         ax.plot(x, y, ' o', c='white', figure=fig, axes=ax)
         xlim = x.min(), x.max()
         ax.plot(xlim, xlim, 'r-', alpha=.75)
@@ -183,15 +229,25 @@ def main(args):
             thetaL = args.thetaL,
             nugget = args.nugget,
     )
-    # get parameters names
-    if args.index is not None:
-        sniffer = csv.Sniffer()
-        dialect = sniffer.sniff(args.index.read(1000))
-        args.index.seek(0)
-        dreader = csv.DictReader(args.index, dialect=dialect)
-        args.paramnames = dreader.fieldnames
+    # get field names from input or from simulations file
+    if args.fields is not None:
+        F = args.parameters + 3 * args.components
+        if len(args.fields) != F:
+            raise ValueError('expecting %d fields')
+        args.paramnames = args.fields[:args.parameters]
+        args.auxiliary = args.fields[args.parameters:]
     else:
-        args.paramnames = [ 'parameter \#%d' % i for i in xrange(args.parameters) ]
+        sniffer = csv.Sniffer()
+        dialect = sniffer.sniff(args.simulations.readline())
+        args.simulations.seek(0)
+        dreader = csv.DictReader(args.simulations, dialect=dialect)
+        args.paramnames = dreader.fieldnames[:args.parameters]
+        args.auxiliary = dreader.fieldnames[args.parameters:]
+        args.simulations.seek(0)
+    if args.weights is not None:
+        a, w = len(args.auxiliary), len(args.weights)
+        if a != w:
+            raise ValueError('expecting %d weights, not %d' % (a, w))
     args.func(args)
 
 def make_parser():
@@ -212,13 +268,13 @@ def make_parser():
     parent.add_argument('-N', '--nugget', type=float, help='GP parameter nugget'
             ' (default: %(default)g)', metavar='VALUE')
     parent.add_argument('-t', '--truncated', action='store_true')
-    parent.add_argument('-i', '--index', type=FileType('r'), help='index file')
-    parent.add_argument('-b', '--bounds', type=float, nargs=2,
+    parent.add_argument('-b', '--bounds', type=float, nargs=2, metavar='VALUE',
             action=AppendTupleAction, help='simulation parameter bounds')
+    parent.add_argument('-w', '--weights', type=float, nargs='+', 
+            help='auxiliary parameters weights', metavar='VALUE')
+    parent.add_argument('-f', '--fields', nargs='+', help='field names')
     parent.set_defaults(theta0=.1, thetaL=1e-2, thetaU=1, nugget=1e-2)
-# faster default settings, give worse results
-#    parent.set_defaults(theta0=.1, thetaL=None, thetaU=None, nugget=1e-2)
-    # main parser with subparsers (see below)
+    # main parser inheriting arguments above 
     parser = ArgumentParser(description=__doc__, parents=[parent])
     subparsers = parser.add_subparsers(help='command')
     # subparser for fitting
