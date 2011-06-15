@@ -6,11 +6,17 @@
 
 prog=`basename $0`
 
-# test we have all utilities
-for i in mktemp tar zip 
-do
-    [[ ! `which $i` ]] && { echo "$prog: $i utility missing. Please install it" ; exit 0 ; }
-done
+function printhelp
+{
+    cat <<EOF
+
+usage: $prog [-h|--help] FILE [ FILE .. ]
+
+options:
+ -h/--help  print this message and exit
+
+EOF
+}
 
 function convert
 { 
@@ -42,6 +48,30 @@ function convert
         echo $prog: error: $1: could not create tempdir $dir
     fi
 } 
+
+# test we have all utilities
+for i in mktemp tar zip 
+do
+    [[ ! `which $i` ]] && { echo "$prog: $i utility missing. Please install it" ; exit 0 ; }
+done
+
+# parse command line
+temp=`getopt -o h -l help -- "$@"`
+
+eval set -- "$temp"
+
+while `true` ; do
+    case "$1" in 
+        -h|--help) printhelp ; exit 0 ;;
+        --) shift 1 ; break ;;
+    esac
+done
+
+if [[ $# = 0 ]] ; then
+    echo
+    echo "$prog: error: need one or more files"
+    printhelp
+fi
 
 for i in $@
 do
