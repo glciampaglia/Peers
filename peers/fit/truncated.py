@@ -1,7 +1,8 @@
 ''' Fits mixture of truncated univariate normals to data using EM '''
 
-from argparse import ArgumentParser, FileType
+from argparse import ArgumentParser
 import numpy as np
+from scipy.stats import kstest, norm
 from scipy.stats.distributions import _norm_pdf 
 from scipy.special import ndtr as norm_cdf 
 from scipy.cluster.vq import kmeans2
@@ -11,14 +12,13 @@ from warnings import warn
 import matplotlib.pyplot as pp
 from matplotlib import cm
 from datetime import timedelta
+from multiprocessing import Pool, Array
+import signal
 
 from ..utils import sanetext, fmt
 from ..rand import randwpmf
 from ..graphics import mixturehist
-
-# TODO <Thu May 12 17:17:25 CEST 2011>:
-# plot of distribution of residuals as function of sample size
-# calcola K-S test statistic e p-value usando bootstrapping
+from .ctruncated import EM as cEM
 
 # On Mac OS X inf**2 raises OverflowError.  This is normal. See here:
 # http://bugs.python.org/issue3222
@@ -47,7 +47,10 @@ def tnorm_cdf(x, mu, sigma, bound):
     l = (bound[0] - mu) / sigma
     c = norm_cdf(u) - norm_cdf(l)
     p = (norm_cdf(x) - norm_cdf(l)) / c
-    return np.where((x >= l) & (x <= u), d, 0.)
+    p[x < l] = 0
+    p[x > u] = 1
+    return p
+#    return np.where((x >= l) & (x <= u), p, 0.)
 
 def _loglike(data, weights, mu, sigma, bound):
     n = len(data)
@@ -246,11 +249,11 @@ class TGMM(object):
     def pdf(self, data):
         b = self.bounds
         return np.sum([ w * tnorm_pdf(data, m, s, b) for w, m, s in \
-                zip(self.weights, self.means, np.sqrt(self.covars)) ])
+                zip(self.weights, self.means, np.sqrt(self.covars)) ], axis=0)
     def cdf(self, data):
         b = self.bounds
         return np.sum([ w * tnorm_cdf(data, m, s, b) for w, m, s in \
-                zip(self.weights, self.means, np.sqrt(self.covars)) ])
+                zip(self.weights, self.means, np.sqrt(self.covars)) ], axis=0)
     def rvs(self, size, prng=np.random):
         ''' uses ancestor and rejection sampling 
         size - shape paramenter
@@ -281,6 +284,112 @@ class TGMM(object):
             samples = np.hstack(samples)
             rvs[idx] = samples * s + m
         return rvs.reshape(size)
+    def identify(self):
+        '''
+        Identify mixture components by sorting according to increasing location
+        '''
+        idx = self.means.argsort()
+        self.means = self.means[idx]
+        self.covars = self.covars[idx]
+        self.weights = self.weights[idx]
+    def confint(self, data, level=.95, sample=10000):
+        '''
+        Confidence intervals via nonparametric bootstrap
+        
+        Parameters
+        ----------
+        data   - array of observations
+        level  - confidence level
+        sample - number of bootstrap samples
+
+        Returns
+        -------
+        m, c, w - confidence intervals for means (m), covars (c), weights (w)
+
+        Attributes `ci' and `level' are available after calling this method.
+        '''
+        try:
+            self.weights
+        except AttributeError:
+            raise ValueError('Cannot simulate confidence intervals on unfitted model')
+        data = np.ravel(data)
+        x = _bootstrap(data, _errworker, sample, (self.components,))
+        alpha = norm.ppf(1 - (1 - level) / 2.0) # two-tailed percentile
+        err = np.std(x, ddof=1) / np.sqrt(len(x))
+        self.ci = tuple(alpha * np.std(x, ddof=1, axis=0))
+        self.level = level
+        return self.ci
+    def kstest(self, data, sample=10000):
+        '''
+        K-S test via nonparametric bootstrap
+        
+        Parameters
+        ----------
+        data   - array of observations
+        sample - number of bootstrap samples used for simulating the p-value
+
+        Returns
+        -------
+        D   - K-S statistic
+        p   - one-tailed p-value under the null hypothesis that data is drawn
+              from this mixture model (low values of p reject the null
+              hypothesis)
+
+        Attributes `ks', `ks_pval' and `ks_sample' are available after calling
+        this method.
+        '''
+        try:
+            self.weights
+        except AttributeError:
+            raise ValueError('Cannot test unfitted model')
+        data = np.ravel(data)
+        self.ks, _ = kstest(data, self.cdf)
+        self.ks_sample = _bootstrap(data, _ksworker, sample, (self.components,))
+        self.ks_pval = np.sum(self.D_sample >= D)/float(sample)
+        return self.ks, self.ks_pval
+
+def _bootstrap(data, target, sample, args=(), nprocs=None):
+    '''
+    target is called as target(*args) and may declare a global variable data which
+    is a shared array holding the data
+    '''
+    shdata = Array('d', len(data))
+    shdata[:] = data
+    pool = Pool(nprocs, _initworker, (shdata,))
+    try:
+        results = [ pool.apply_async(target, args) for i in xrange(sample) ]
+        return [ r.get() for r in results ]
+    except KeyboardInterrupt:
+        print >> sys.stderr, "killing workers"
+        raise
+    finally:
+        pool.terminate()
+        pool.join()
+
+def _initworker(shdata):
+    global data
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    data = shdata
+
+def _getsample():
+    global data
+    _data = np.asarray(data)
+    idx = np.random.randint(0, len(data), len(data))
+    return _data[idx]
+
+def _ksworker(components):
+    sample = _getsample()
+    tgmm = TGMM(components)
+    tgmm.fit(sample)
+    D, p = kstest(sample.ravel(), tgmm.cdf)
+    return D
+
+def _errworker(components):
+    sample = _getsample()
+    tgmm = TGMM(components)
+    tgmm.fit(sample)
+    tgmm.identify()
+    return tgmm.means, tgmm.covars, tgmm.weights
 
 # needed by plot
 class tnorm(object):
@@ -293,7 +402,7 @@ class tnorm(object):
 
 def make_parser():
     parser = ArgumentParser(description=__doc__)
-    parser.add_argument('datafile', type=FileType('r'))
+    parser.add_argument('datafile', metavar='data')
     parser.add_argument('components', type=int)
     parser.add_argument('-b', '--bounds', nargs=2, type=float, help='truncates'
             ' data to this interval. (default: takes min and max from data)')
@@ -310,7 +419,7 @@ def make_parser():
     parser.add_argument('-P', '--profile', action='store_true')
     parser.add_argument('-PF', '--prof-file', metavar='FILE', 
             default=os.path.splitext(os.path.basename(__file__))[0]+'.prof')
-    parser.add_argument('--fast', action='store_true', help='Use Cython version')
+    parser.add_argument('--nofast', action='store_true', help='Python implementation')
     return parser
 
 def plot(data, model, bins=10, output=None, **params):
@@ -334,25 +443,17 @@ def plot(data, model, bins=10, output=None, **params):
         pp.savefig(output, format=fmt(output, 'pdf'))
     pp.show()
 
-from ctruncated import EM as cEM
-
 def main(args):
-    global EM
-    if args.datafile.isatty():
-        data = np.loadtxt(args.datafile, delimiter=args.delimiter)
-    else:
-        ext = os.path.splitext(args.datafile.name)[1][1:].lower()
-        if ext in ['npy', 'npz']:
-            data = np.load(args.datafile)
-        else:
-            data = np.loadtxt(args.datafile, delimiter=args.delimiter)
+    data = np.load(args.datafile, mmap_mode='r')
     if args.log:
         data = np.log(data)
     prng = np.random.RandomState(args.seed)
-    if args.fast:
-        EM = cEM
-    weights, means, sigmas, ll, flag = EM(data, args.components, 
-            n_iter=args.iterations, prng=prng, verbose=args.verbose)
+    if args.nofast:
+        weights, means, sigmas, ll, flag = EM(data, args.components, 
+                n_iter=args.iterations, prng=prng, verbose=args.verbose)
+    else:
+        weights, means, sigmas, ll, flag = cEM(data, args.components, 
+                n_iter=args.iterations, prng=prng, verbose=args.verbose)
     print
     for i, comp in enumerate(zip(weights, means, sigmas)):
         print 'Component %d:' % (i + 1)
@@ -434,17 +535,6 @@ if __name__ == '__main__':
 #         sigma = prng.exponential(hypersigma,size=(k,))
 #         weights, mu, sigma = map(list,[weights,mu,sigma])
 #         return cls.fromvalues(weights,mu,sigma,bounds)
-#     def kstest(self, prng=np.random):
-#         if len(self.data) == 0:
-#             print 'model doesn\'t contain any data!'
-#             return
-#         self.dist = TMMdist(self.k,self.bounds)
-#         d,pval,ci = kstest(self,self.data,prng=prng)
-#         self.d = d
-#         self.pval = pval
-#         self.ci = ci
-#         print 'K-S statistic: %g, p-value: %g %s' % (d,pval,'(<.1)' if pval < .1 
-#                 else '')
 #     def residuals(self, tmm):
 #         ''' returns residuals of the parameters between self and given truncated
 #         model tmm. '''
