@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as pp
 from matplotlib import cm
+from scipy.stats import gaussian_kde
+from matplotlib.collections import LineCollection
 
 def stackedarea(x, components, weights, cmap=cm.YlGnBu, **kwargs):
     '''
@@ -54,3 +56,51 @@ def mixturehist(data, components, weights, bins=10, num=1000, cmap=cm.YlGnBu, **
     xmin, xmax = pp.xlim()
     xi = np.linspace(xmin, xmax, num)
     stackedarea(xi, components, weights, cmap, **kwargs)
+
+def kdeplot(data, xmin=None, xmax=None, num=50, vmin=None, vmax=None, lc='k', **kwargs):
+    '''
+    Plots density of data, estimated via Gaussian Kernels, together with
+    vertical lines for each data point.
+
+    Parameters
+    ----------
+    data       - data sample
+    xmin, xmax - range of density line plot
+    num        - number of points at which kde will be evaluated
+    vmin, vmax - vertical lines will span from vmin to vmax
+    lc         - vertical lines color
+
+    Returns
+    -------
+    l        - density line object
+    linecoll - collection of vertical lines
+    kde      - scipy.stats.kde.gaussian_kde
+
+    Additional keyword arguments are passed to plot the density line
+    '''
+    data = np.ravel(data)
+    x0, x1 = data.min(), data.max()
+    xmin = xmin or x0
+    xmax = xmax or x1
+    x = np.linspace(xmin, xmax, num)
+    kde = gaussian_kde(data)
+    d = kde.evaluate(x)
+    if 'axes' in kwargs:
+        ax = kwargs['axes']
+    elif 'figure' in kwargs:
+        ax = kwargs['figure'].axes[-1]
+    elif kwargs.pop('hold', False):
+        ax = pp.gca()
+    else:
+        fig = pp.figure()
+        ax = fig.add_subplot(111)
+    l = ax.plot(x,d, **kwargs)
+    y0, y1 = ax.get_ylim()
+    vmax = vmax or -(y1 - y0) / 30.
+    vmin = vmin or -(y1 - y0) / 10.
+    linesiter = ( [(d, vmax), (d, vmin)] for d in data )
+    linecoll = LineCollection(linesiter, color=lc)
+    ax.add_collection(linecoll)
+    ax.set_ylim(y0 - (y1 - vmin)/9., y1)
+    pp.draw()
+    return l, linecoll, kde
