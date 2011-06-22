@@ -11,6 +11,7 @@ matplotlib.use('PDF')
 import matplotlib.pyplot as pp
 
 from peers.graphics import kdeplot
+from peers.utils import sanetext
 
 parser = ArgumentParser(description=__doc__)
 parser.add_argument('datafn', metavar='data')
@@ -27,6 +28,6 @@ if __name__ == '__main__':
     pp.hist(data, bins=50, fc='none', ec='k', normed=True)
     pp.xlabel(r'$\tau$ (log-days)')
     pp.ylabel(r'density')
-    pp.title(dataset)
+    pp.title(sanetext(dataset))
     pp.savefig(ns.outfn)
     print 'output written to %s' % ns.outfn
