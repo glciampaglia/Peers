@@ -52,10 +52,6 @@ commands = {
             'peers.lt',
             'post-processing script',
             ),
-        'stats' : (
-            'peers.stats',
-            'plots lifetime statistics'
-            ),
         'diagnostics' : (
             'peers.diagnostics',
             'plots active users/pages during a simulation'
