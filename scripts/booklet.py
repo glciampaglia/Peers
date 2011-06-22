@@ -1,4 +1,7 @@
-''' saves to pdf kernel density plots of simulation runs '''
+''' 
+plots densities of data from a compressed archive of NumPy array data files
+'''
+
 from argparse import ArgumentParser
 import numpy as np
 import re
