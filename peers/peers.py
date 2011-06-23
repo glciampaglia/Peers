@@ -53,13 +53,15 @@ def loop(tstart, tstop, args, users, pages, output, prng=np.random):
     p1 = args.p_stop_long
     p2 = args.p_stop_short
     num_events = 0
+    pedit = [u.rate for u in users]
+    pstop = [u.ratio * p1 + (1 - u.ratio) * p2 for u in users] 
+    ppage = [p.edits for p in pages] 
+    if len(users):
+        eR = np.sum(pedit)
+        dR = np.sum(pstop)
+    else:
+        eR, dR = 0.0, 0.0
     while True:
-        rates = np.asarray([ (u.rate, u.ratio) for u in users ])
-        if len(rates):
-            rates[:, 1] = rates[:,1] * p1 + (1 - rates[:,1]) * p2
-            eR, dR = np.sum(rates, axis=0)
-        else:
-            eR, dR = 0.0, 0.0
         R = eR + dR + uR + pR
         T = (1 - np.log(prng.uniform())) / R # time to next event
         if t + T > tstop:
@@ -69,10 +71,12 @@ def loop(tstart, tstop, args, users, pages, output, prng=np.random):
         ev = randwpmf([eR, dR, uR, pR], prng=prng)
         if ev == 0: # edit
             if len(pages):
-                user_idx = randwpmf(rates[:,0], prng=prng)
-                page_idx = randwpmf([p.edits for p in pages], prng=prng)
+                user_idx = randwpmf(pedit, prng=prng)
+                page_idx = randwpmf(ppage, prng=prng)
                 user = users[user_idx]
                 page = pages[page_idx]
+                # will later re-update it 
+                dR -= (user.ratio * p1 + (1 - user.ratio) * p2)
                 user.edits += 1
                 page.edits += 1
                 if np.abs(user.opinion - page.opinion) < args.confidence:
@@ -83,21 +87,38 @@ def loop(tstart, tstop, args, users, pages, output, prng=np.random):
                     page.opinion += args.speed * ( user.opinion - page.opinion )
                 users[user_idx] = user
                 pages[page_idx] = page
+                # re-compute the probability user stops and update global rate
+                ups = (user.ratio * p1 + (1 - user.ratio) * p2)
+                pstop[user_idx] = ups
+                ppage[page_idx] += 1
+                dR += ups
                 if output:
                     print t, user.id, page.id
         elif ev == 1: # user stops
-            user_idx = randwpmf(rates[:,1], prng=prng)
+            user_idx = randwpmf(pstop, prng=prng)
+            user = users[user_idx]
+            eR -= user.rate
+            dR -= (user.ratio * p1 + (1 - user.ratio) * p2)
+            del user
             del users[user_idx]
+            del pstop[user_idx]
+            del pedit[user_idx]
         elif ev == 2: # new user
             o = prng.uniform()
             user = User(args.const_succ, args.const_succ, o, args.daily_edits)
             users.append(user)
+            ups = (user.ratio * p1 + (1 - user.ratio) * p2)
+            eR += user.rate
+            dR += ups
+            pstop.append(ups)
+            pedit.append(user.rate)
         else: # new page
             if len(users):
                 user_idx = prng.randint(0, len(users))
                 user = users[user_idx]
                 page = Page(args.const_pop + 1, user.opinion)
                 pages.append(page)
+                ppage.append(page.edits)
         if args.info_file is not None:
             args.info_file.write('%g %g %g\n' % (t, len(users), len(pages)))
     return num_events
