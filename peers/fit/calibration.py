@@ -7,6 +7,9 @@ mixture model (GMM), estimated by means of the EM algorithm on the empirical
 data and on simulated data. Gaussian Process approximation of the simulated GMM
 statistic is performed to obtain a smooth function of the model parameters. '''
 
+# TODO <Thu Jun 23 14:39:07 CEST 2011> riportare il valore della funzione di
+# errore in corrispondenza del minimo quale misura di GoF della calibrazione.
+
 import sys
 import csv
 from datetime import datetime
@@ -26,23 +29,36 @@ def _ppdict(d):
     return ', '.join(map(lambda k : '%s : %s' % k, d.items()))
 
 def print_info(args, cv=False):
-    print
-    print 'Command: %s' % ('cross-validation' if cv else 'fit')
-    print 'Data set: %s' % args.datasetname
-    print 'Date: %s' % datetime.now()
-    print 'Parameter Bounds: %s' % (args.bounds if args.bounds is not None else 'N/A')
-    print 'Truncated: %s' % ('yes' if args.truncated else 'no')
-    print 'GMM Components: %d' % args.components
+    writer = csv.writer(sys.stdout, dialect=csv.get_dialect('excel'))
+    rows = []
+    rows.append(('Command', 'cross-validation' if cv else 'fit'))
+    rows.append(('Data', args.datasetname))
+    rows.append(('Date', datetime.now()))
+    rows.append(('Mixture Truncation', ('yes' if args.truncated else 'no')))
+    rows.append(('Mixture components', args.components))
+    r = ['GP params']
+    map(r.extend,args.gpparams.items())
+    rows.append(r)
+    rows.append(('Optimization method', 
+            'fmin_l_bfgs_b' if args.bounds else 'fmin'))
+    if cv is False:
+        rows.append(('Bootstrap', ('yes' if args.bootstrap else 'no')))
+        rows.append(('Bootstrap repetitions', args.bootstrap_reps))
+        rows.append(('Bootstrap sample', (args.bootstrap_size if args.bootstrap_size
+                else 'same as dataset')))
     if args.weights is not None:
-        print 'Weights: %s' % _ppdict(dict(zip(args.auxiliary, args.weights)))
+        r = ['Weights']
+        map(r.extend, zip(args.auxiliary, args.weights))
+        rows.append(r)
     else:
-        print 'Weights: N/A'
-    print 'GP parameters: %s' % _ppdict(args.gpparams)
-    print 'Optimization method: %s' % ('fmin_l_bfgs_b' if args.bounds else 'fmin')
-    print 'Bootstrap: %s' % ( 'yes' if args.bootstrap else 'no')
-    print 'Bootstrap repetitions: %g' % args.bootstrap_reps
-    print 'Bootstrap sample: %s' % (args.bootstrap_size if args.bootstrap_size
-            else 'same as dataset')
+        rows.append(('Weights', 'no'))
+    if args.bounds is not None:
+        r = ['Bounds']
+        map(r.extend, map(lambda k,b : (k,) + b, args.paramnames, args.bounds))
+        rows.append(r)
+    else:
+        rows.append(('Bounds', 'no'))
+    writer.writerows(rows)
     print
     sys.stdout.flush()
 
@@ -88,12 +104,17 @@ def fit(args):
         reportfit(args, estval)
 
 def reportfit(args, value, error=None, interval=None, level=95):
+    fields = ['parameter', 'value', 'error', 'level', 'confint']
+    writer = csv.DictWriter(sys.stdout, fields, dialect=csv.get_dialect('excel'))
+    writer.writeheader()
     if error is not None:
-        for name, v, e, i in zip(args.paramnames, value, error, interval):
-            print '%s : %g +/- %g (%d%% ci: %g)' % (name, v, e, level, i)
+        for items in zip(args.paramnames, value, error, interval):
+            writer.writerow(dict(zip(fields, items)))
     else:
         for name, v in zip(args.paramnames, value):
-            print '%s : %g +/- N/A (%d%% ci: N/A)' % (name, v)
+            row = dict.fromkeys(fields, 'N/A')
+            row.update(parameter=name, value=v)
+            writer.writerow(row)
     print
 
 # wrapper function needed by bootstrap
@@ -195,17 +216,17 @@ def reportcrossval(args, *cvresults):
     fw, fh = pp.rcParams['figure.figsize']
     figsize = h * fh, w * fw
     fig = pp.figure(figsize=figsize)
+    fields = ['parameter','slope', 'intercept', 'error', 'R^2', 'P-value']
+    writer = csv.DictWriter(sys.stdout, fields,
+            dialect=csv.get_dialect('excel'))
+    writer.writeheader()
     for i in xrange(args.parameters):
-        x, y = cvresults[i]
         name = args.paramnames[i]
-        slope, intercept, r_value, p_value, std_err = linregress(x, y)
-        print '-' * len(name)
-        print name
-        print '-' * len(name)
-        print 'Slope: %.5g, intercept: %.5g, Error: +/- %.5g' % (slope, intercept,
-                std_err)
-        print 'R^2: %.5g, P-value: %.5g' % (r_value ** 2, p_value)
-        print
+        x, y = cvresults[i]
+        regr_res = linregress(x, y)
+        row = { 'parameter' : name }
+        row.update(zip(fields[1:], regr_res))
+        writer.writerow(row)
         ax = pp.subplot(h,w,i)
         ax.plot(x, y, ' o', c='white', figure=fig, axes=ax)
         xlim = x.min(), x.max()
