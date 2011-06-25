@@ -6,7 +6,13 @@ directly, use peers.utils instead.
 import os.path
 from argparse import Action, _AppendAction, ArgumentError
 
-__all__ = ['AppendRangeAction', 'AppendTupleAction', 'AppendMaxAction']
+__all__ = ['NNAction', 'AppendRangeAction', 'AppendTupleAction', 'AppendMaxAction']
+
+class NNAction(Action):
+    def __call__(self, parser, ns, value, option_string=None):
+        if value < 0:
+            raise ArgumentError(self, 'negative values not allowed: %g' % value)
+        setattr(ns, self.dest, value)
 
 class AppendRangeAction(_AppendAction):
     ''' Check a < b, nargs must be equal to 2 '''

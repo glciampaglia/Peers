@@ -13,24 +13,31 @@ import sys
 from time import time
 from cStringIO import StringIO
 from warnings import warn
+from heapq import heappop, heappush
+from collections import deque
 
 from .rand import randwpmf
-from .utils import ttysize, IncIDMixin
+from .utils import ttysize, IncIDMixin, NNAction
 from .cpeers import loop as c_loop
 
 class User(IncIDMixin):
     ''' Class for user instances '''
     __slots__ = [
-            'opinion',      # \in [0,1], named this way for historic reasons
-            'edits',        # \ge 0, number of edits performed
-            'successes',    # \ge 0 and \le edits, number of successful edits
-            'rate',         # edit rate
+            'opinion',         # \in [0,1], named this way for historic reasons
+            'edits',           # \ge 0, number of edits performed
+            'successes',       # \ge 0 and \le edits, number of successful edits
+            'daily_sessions',  # activation rate
+            'hourly_edits',    # edits / hour
+            'session_edits',   # average # edits per session
     ]
-    def __init__(self, edits, successes, opinion, rate):
+    def __init__(self, edits, successes, opinion, daily_sessions, hourly_edits,
+            session_edits):
         self.edits = edits
         self.successes = successes
         self.opinion = opinion 
-        self.rate = rate
+        self.daily_sessions = daily_sessions
+        self.hourly_edits = hourly_edits
+        self.session_edits = session_edits
     @property
     def ratio(self):
         return self.successes / self.edits
@@ -53,65 +60,85 @@ def loop(tstart, tstop, args, users, pages, output, prng=np.random):
     p1 = args.p_stop_long
     p2 = args.p_stop_short
     num_events = 0
-    pedit = [u.rate for u in users]
+    pactiv = [u.daily_sessions for u in users]
     pstop = [u.ratio * p1 + (1 - u.ratio) * p2 for u in users] 
     ppage = [p.edits for p in pages] 
+    editsqueue = []
     if len(users):
-        eR = np.sum(pedit)
+        aR = np.sum(pactiv)
         dR = np.sum(pstop)
     else:
-        eR, dR = 0.0, 0.0
+        aR, dR = 0.0, 0.0
     while True:
-        R = eR + dR + uR + pR
+        R = aR + dR + uR + pR
         T = (1 - np.log(prng.uniform())) / R # time to next event
         if t + T > tstop:
             break
+        while len(editsqueue):
+            tt, user = heappop(editsqueue)
+            if tt < t + T:
+                try:
+                    user_idx = users.index(user)
+                except ValueError:
+                    continue # skip tasks of stopped users
+                if len(pages):
+                    page_idx = randwpmf(ppage, prng=prng)
+                    page = pages[page_idx]
+                    # will later re-update it 
+                    dR -= (user.ratio * p1 + (1 - user.ratio) * p2)
+                    user.edits += 1
+                    page.edits += 1
+                    if np.abs(user.opinion - page.opinion) < args.confidence:
+                        user.successes += 1
+                        user.opinion += args.speed * ( page.opinion - user.opinion )
+                        page.opinion += args.speed * ( user.opinion - page.opinion )
+                    elif prng.rand() < args.rollback_prob:
+                        page.opinion += args.speed * ( user.opinion - page.opinion )
+                    # re-compute the probability user stops and update global
+                    # rate
+                    users[user_idx] = user
+                    ups = (user.ratio * p1 + (1 - user.ratio) * p2)
+                    pstop[user_idx] = ups
+                    dR += ups
+                    pages[page_idx] = page
+                    ppage[page_idx] += 1
+                    if output:
+                        print tt, user.id, page.id
+                    num_events += 1
+            else:
+                heappush(editsqueue, (tt, user))
+                break
         t = t + T
-        num_events += 1
-        ev = randwpmf([eR, dR, uR, pR], prng=prng)
-        if ev == 0: # edit
-            if len(pages):
-                user_idx = randwpmf(pedit, prng=prng)
-                page_idx = randwpmf(ppage, prng=prng)
-                user = users[user_idx]
-                page = pages[page_idx]
-                # will later re-update it 
-                dR -= (user.ratio * p1 + (1 - user.ratio) * p2)
-                user.edits += 1
-                page.edits += 1
-                if np.abs(user.opinion - page.opinion) < args.confidence:
-                    user.successes += 1
-                    user.opinion += args.speed * ( page.opinion - user.opinion )
-                    page.opinion += args.speed * ( user.opinion - page.opinion )
-                elif prng.rand() < args.rollback_prob:
-                    page.opinion += args.speed * ( user.opinion - page.opinion )
-                users[user_idx] = user
-                pages[page_idx] = page
-                # re-compute the probability user stops and update global rate
-                ups = (user.ratio * p1 + (1 - user.ratio) * p2)
-                pstop[user_idx] = ups
-                ppage[page_idx] += 1
-                dR += ups
-                if output:
-                    print t, user.id, page.id
+        ev = randwpmf([aR, dR, uR, pR], prng=prng)
+        if ev == 0: # edit cascade
+            user_idx = randwpmf(pactiv, prng=prng)
+            user = users[user_idx]
+            heappush(editsqueue, (t, user))
+            num_edits = prng.poisson(user.session_edits)
+            times = (1 - np.log(prng.rand(num_edits))) / user.hourly_edits
+            times = t + (times / 24.0).cumsum()
+            for tt in times:
+                heappush(editsqueue, (tt, user))
         elif ev == 1: # user stops
             user_idx = randwpmf(pstop, prng=prng)
             user = users[user_idx]
-            eR -= user.rate
+            aR -= user.daily_sessions
             dR -= (user.ratio * p1 + (1 - user.ratio) * p2)
             del user
             del users[user_idx]
             del pstop[user_idx]
-            del pedit[user_idx]
+            del pactiv[user_idx]
         elif ev == 2: # new user
             o = prng.uniform()
-            user = User(args.const_succ, args.const_succ, o, args.daily_edits)
+            user = User(args.const_succ, args.const_succ, o, 
+                    args.daily_sessions, args.hourly_edits,
+                    args.session_edits)
             users.append(user)
             ups = (user.ratio * p1 + (1 - user.ratio) * p2)
-            eR += user.rate
+            aR += user.daily_sessions
             dR += ups
             pstop.append(ups)
-            pedit.append(user.rate)
+            pactiv.append(user.daily_sessions)
         else: # new page
             if len(users):
                 user_idx = prng.randint(0, len(users))
@@ -137,8 +164,9 @@ def simulate(args):
     '''
     prng = np.random.RandomState(args.seed)
     # users have a fixed activity rate and an initial number of ``successes''
-    users = [ User(args.const_succ, args.const_succ, o, args.daily_edits) 
-            for o in prng.random_sample(args.num_users) ]
+    users = [ User(args.const_succ, args.const_succ, o, args.daily_sessions,\
+            args.hourly_edits, args.session_edits) for o in 
+            prng.random_sample(args.num_users) ]
     # pages have an initial value of popularity.
     pages = [ Page(args.const_pop,o) for o in prng.random_sample(args.num_pages) ]
     if args.transient:
@@ -175,45 +203,27 @@ class Arguments(object):
         self._check()
         self.p_stop_long = self.long_life ** -1
         self.p_stop_short = self.short_life ** -1
-    def _check(self):
-        #--------#
-        # Errors #
-        #--------#
-        if self.seed is not None and self.seed < 0:
-            raise ValueError('seed cannot be negative (-s)')
+    def _check(self): # raise exceptions
         if self.time < 0:
-            raise ValueError('simulation duration cannot be negative')
-        if self.transient < 0:
-            raise ValueError('transient duration cannot be negative')
-        if self.num_users < 0:
-            raise ValueError('initial number of users cannot be negative '\
-                    '(-u/--num-users)')
-        if self.num_pages < 0:
-            raise ValueError('num_pages cannot be negative (-p/--num-pages)')
-        if self.const_succ < 0:
-            raise ValueError('const_succ cannot be negative (--const-succ)')
-        if self.const_pop <= 0:
-            raise ValueError('const_pop must be positive (--const-pop)')
-        if self.daily_users < 0:
-            raise ValueError('daily_users cannot be negative '
-                    '(-U/--daily-users)')
-        if self.daily_pages < 0:
-            raise ValueError('daily_pages cannot be negative '
-                    '(-P/--daily-pages)')
+            raise ValueError('simulation duration cannot be negative: %d' %
+                    self.time)
+        if self.seed is not None and self.seed < 0:
+            raise ValueError('seed cannot be negative: %d' % self.seed)
         if self.confidence < 0 or self.confidence > 1:
             raise ValueError('confidence must be in [0,1] (-c/--confidence)')
         if self.rollback_prob < 0 or self.rollback_prob > 1:
             raise ValueError('rollback_prob must be in [0,1] (--rollback-prob)')
         if self.speed < 0 or self.speed > 0.5:
             raise ValueError('speed must be in [0, 0.5] (--speed)')
-    def _warn(self):
-        #----------#
-        # Warnings #
-        #----------#
+    def _warn(self): # raise warnings
         if self.seed is None:
             warn('no seed was specified', category=UserWarning)
-        if self.daily_edits == 0:
-            warn('turning off user edits', category=UserWarning)
+        if self.daily_sessions == 0:
+            warn('turning off editing sessions', category=UserWarning)
+        if self.hourly_edits == 0:
+            warn('setting edits/hour to 0', category=UserWarning)
+        if self.session_edits == 0:
+            warn('setting average edits/session to 0', category=UserWarning)
         if self.daily_users == 0:
             warn('turning off new users arrival', category=UserWarning)
         if self.daily_pages == 0:
@@ -234,11 +244,13 @@ class Arguments(object):
         print >> sio, '-'*w
         print >> sio, 'TIME.\tSimulation: %g (days).\tTransient: %g (days).'\
                 % (self.time, self.transient)
-        print >> sio, 'USERS.\tInitial: %d (users).\tIn-rate: %g (users/day).'\
-                '\tActivity: %g (edits/day)' % (self.num_users, self.daily_users,
-                self.daily_edits)
+        print >> sio, 'USERS.\tInitial: %d (users).\tIn-rate: %g (users/day).' % (
+                self.num_users, self.daily_users)
         print >> sio, '\tLong life: %g (days)\tShort life: %g (days)'\
                 % (self.long_life, self.short_life)
+        print >> sio, 'EDITS.\tSessions/Day: %g.\tEdits/Hour: %g.'\
+                '\tEdits/Session: %d.' % (self.daily_sessions,
+                        self.hourly_edits, self.session_edits)
         print >> sio, 'PAGES.\tInitial: %d (pages).\tIn-rate: %g (pages/day).' % (
                 self.num_pages, self.daily_pages)
         print >> sio, 'PAIRS.\tBase success: %g.\tBase popularity: %g.'\
@@ -260,40 +272,50 @@ def make_parser():
     parser = ArgumentParser(description=__doc__, fromfile_prefix_chars='@')
     parser.add_argument('time', type=float, help='simulation duration, in days')
     parser.add_argument('seed', type=int, nargs='?', help='seed of the '
-            'pseudo-random numbers generator', metavar='seed')
+            'pseudo-random numbers generator', metavar='seed' )
     parser.add_argument('-T', '--transient', type=float, metavar='DAYS',
-            help='transient duration (default: %(default)g)', default=0.0)
-    parser.add_argument('-e', '--daily-edits', type=float, metavar='EDITS',
-            help='average daily number of edits of a user', default=1.0)
+            help='transient duration (default: %(default)g)', default=0.0,
+            action=NNAction)
+    parser.add_argument('-a', '--daily-sessions', type=float, metavar='RATE',
+            help='daily number of sessions', default=1.0,
+            action=NNAction)
+    parser.add_argument('-e', '--hourly-edits', type=float, metavar='EDITS',
+            help='hourly number of edits', default=1.0, action=NNAction)
+    parser.add_argument('-E', '--edits', type=int, metavar='EDITS',
+            help='edits per session', default=1, action=NNAction,
+            dest='session_edits')
     parser.add_argument('-L', '--long-life', type=float, metavar='DAYS',
-            help='user long-term lifespan (default: %(default)g)', default=100.0)
+            help='user long-term lifespan (default: %(default)g)',
+            default=100.0, action=NNAction)
     parser.add_argument('-l', '--short-life', type=float, metavar='DAYS',
             help='user short-term lifespan (default: %(default)g)', 
-            default=1.0/24.0)
+            default=1.0/24.0, action=NNAction)
     parser.add_argument('-u', '--users', type=int, default=0, help='initial'
             ' number of users (default: %(default)d)', dest='num_users',
-            metavar='NUM')
+            metavar='NUM', action=NNAction)
     parser.add_argument('-p', '--pages', type=int, default=0, help='initial'
             ' number of pages (default: %(default)d)', dest='num_pages',
-            metavar='NUM')
+            metavar='NUM', action=NNAction)
     parser.add_argument('-U', '--daily-users', metavar='RATE', default=1.0, 
             type=np.double, help='daily rate of new users (default: '
-            '%(default)g)')
+            '%(default)g)', action=NNAction)
     parser.add_argument('-P', '--daily-pages', metavar='RATE', default=1.0, 
             type=np.double, help='daily rate of new pages (default: '
-            '%(default)g)')
+            '%(default)g)', action=NNAction)
     parser.add_argument('-c', '--confidence', type=np.double, default=.2,
             help='confidence parameter (default: %(default)g)')
     parser.add_argument('-s', '--speed', type=np.double, default=0.5,
             help='opinion averaging speed (default: %(default)g)')
     parser.add_argument('--const-succ', metavar='EDITS', type=float,
-            default=1.0, help='base user successes (default: %(default)g)')
+            default=1.0, help='base user successes (default: %(default)g)',
+            action=NNAction)
     parser.add_argument('--const-pop', metavar='EDITS', type=float,
-            default=1.0, help='base page popularity (default: %(default)g)')
+            default=1.0, help='base page popularity (default: %(default)g)',
+            action=NNAction)
     parser.add_argument('-r', '--rollback-prob', metavar='PROB', type=np.double,
             default=0.5, help='roll-back probability (default: %(default)g)')
 # misc
-    parser.add_argument('-d', '--dry-run', action='store_true',
+    parser.add_argument('-n', '--dry-run', action='store_true',
             help='do not simulate, just print parameters defaults')
     parser.add_argument('-D', '--debug', action='store_true', 
             help='raise Python exceptions to the console')
@@ -307,7 +329,7 @@ def make_parser():
     parser.add_argument('--profile-file', metavar='FILE', default=None,
             help="store profiling information in file")
 # verbosity
-    parser.add_argument('-n', '--no-banner', action='store_const', const=1,
+    parser.add_argument('--no-banner', action='store_const', const=1,
             dest='verbosity', help='do not print banner.')
     parser.add_argument('-q', '--quiet', action='store_const', const=0,
             dest='verbosity', help='do not print the banner')
