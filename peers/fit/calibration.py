@@ -91,36 +91,59 @@ def fit(args):
     R = 3 * args.components # number of GMM parameters
     X, Y = gettxtdata(args.simulations, R, delimiter=args.delimiter, skiprows=1)
     theta = fitgmm(data, args.components)
-    estval = _fit(X, Y, theta, bounds=args.bounds, weights=args.weights,
-            **args.gpparams)
+    estfit, auxfit, errfit = _fit(X, Y, theta, bounds=args.bounds, 
+            weights=args.weights, **args.gpparams)
     if args.bootstrap:
         bootsample = bootstrap(_targetfit, args.bootstrap_reps, data,
                 args.bootstrap_size, xsim=X, ysim=Y, bounds=args.bounds, 
                 weights=args.weights, components=args.components, 
                 **args.gpparams)
         _, esterr, estint = zip(*map(estimate, zip(*bootsample)))
-        reportfit(args, estval, error=esterr, interval=estint)
+        reportfit(args, data, estfit, auxfit, error=esterr, interval=estint)
     else:
-        reportfit(args, estval)
+        reportfit(args, data, estfit, auxfit)
 
-def reportfit(args, value, error=None, interval=None, level=95):
-    fields = ['parameter', 'value', 'error', 'level', 'confint']
+def reportfit(args, data, estimates, auxiliaries, error=None, interval=None, 
+        level=95):
+    fields = ['parameter', 'estimate', 'error', 'level', 'confint']
     writer = csv.DictWriter(sys.stdout, fields, dialect=csv.get_dialect('excel'))
     writer.writeheader()
     if error is not None:
-        for items in zip(args.paramnames, value, error, interval):
+        for items in zip(args.paramnames, estimates, error, interval):
             writer.writerow(dict(zip(fields, items)))
     else:
-        for name, v in zip(args.paramnames, value):
+        for name, v in zip(args.paramnames, estimates):
             row = dict.fromkeys(fields, 'N/A')
-            row.update(parameter=name, value=v)
+            row.update(parameter=name, estimate=v)
             writer.writerow(row)
     print
+    C = args.components
+    xmin, xmax = data.min(), data.max()
+    x = np.linspace(xmin, xmax, 100)
+    if args.truncated:
+        model = TGMM(C)
+        model.bounds = (xmin, xmax)
+        model.means = auxiliaries[:,:C].ravel()
+        model.covars = auxiliaries[:,C:2 * C].ravel()
+        model.weights = auxiliaries[:,2 * C:].ravel()
+        d = model.pdf(x)
+    else:
+        model = GMM(C)
+        model.means = auxiliaries[:,:C].reshape((C,1))
+        model.covars = auxiliaries[:,C:2 * C].reshape((C,1))
+        model.weights = auxiliaries[:,2 * C:].ravel()
+        d = np.exp(model.score(x[:,np.newaxis]))
+    pp.hist(data, bins=25, normed=True, fc='none', ec='k')
+    pp.plot(x, d, 'r-')
+    pp.xlabel('days')
+    pp.ylabel('density')
+    pp.show()
 
 # wrapper function needed by bootstrap
 def _targetfit(sample, xsim, ysim, bounds, components=2, weights=None, **gpparams):
     theta = fitgmm(sample, components)
-    return _fit(xsim, ysim, theta, bounds, weights, **gpparams)
+    xopt, topt, fopt = _fit(xsim, ysim, theta, bounds, weights, **gpparams)
+    return xopt
 
 def _fit(thetasim, betasim, beta, bounds=None, weights=None, fmintries=5, **gpparams):
     r'''
@@ -155,6 +178,9 @@ def _fit(thetasim, betasim, beta, bounds=None, weights=None, fmintries=5, **gppa
     -------
     X_fit        - simulation parameters that minimize L2 distance between gp
                    approximation of empirical data
+    Y_fit        - the value of the auxiliary parameters at which the minimum of
+                   the error function is obtained
+    err_fit      - the minimum of the error function
     '''
     gp = SurrogateModel.fitGP(thetasim, betasim, **gpparams)
     if weights is None:
@@ -192,7 +218,7 @@ def _fit(thetasim, betasim, beta, bounds=None, weights=None, fmintries=5, **gppa
             if fopt_best > fopt:
                 xopt_best = xopt
                 fopt_best = fopt
-    return xopt_best
+    return xopt_best, gp(xopt_best), fopt_best
 
 def crossval(args):
     args.datasetname = args.simulations.name
@@ -204,7 +230,7 @@ def crossval(args):
     for train_index, test_index in LeaveOneOut(len(X)):
         X_train, X_test = X[train_index], X[test_index]
         Y_train, Y_test = Y[train_index], Y[test_index]
-        xopt = _fit(X_train, Y_train, Y_test, bounds=args.bounds,
+        xopt, _, _ = _fit(X_train, Y_train, Y_test, bounds=args.bounds,
                 weights=args.weights, **args.gpparams)
         cv.append(zip(X_test.ravel(), xopt))
     cv = np.asarray(zip(*cv)).swapaxes(1,2)
@@ -237,8 +263,6 @@ def reportcrossval(args, *cvresults):
         pp.title(sanetext(name), fontsize='small')
         pp.draw()
     fig.subplots_adjust(hspace=.5, wspace=.3)
-    if args.output is not None:
-        pp.savefig(args.output, format=fmt(args.output.name))
     pp.show()
 
 def main(args):
@@ -270,6 +294,8 @@ def main(args):
         if a != w:
             raise ValueError('expecting %d weights, not %d' % (a, w))
     args.func(args)
+    if args.output is not None:
+        pp.savefig(args.output, format=fmt(args.output.name))
 
 def make_parser():
     # common arguments are put in a parent parser 
@@ -294,6 +320,8 @@ def make_parser():
     parent.add_argument('-w', '--weights', type=float, nargs='+', 
             help='auxiliary parameters weights', metavar='VALUE')
     parent.add_argument('-f', '--fields', nargs='+', help='field names')
+    parent.add_argument('-o', '--output', type=FileType('w'), metavar='FILE',
+            help='save figure to %(metavar)s')
     parent.set_defaults(theta0=.1, thetaL=1e-2, thetaU=1, nugget=1e-2)
     # main parser inheriting arguments above 
     parser = ArgumentParser(description=__doc__, parents=[parent])
@@ -315,8 +343,6 @@ def make_parser():
     parser_cv = subparsers.add_parser('crossval')
     parser_cv.add_argument('simulations', help='GMM parameters estimated from '
             'simulation data', type=FileType('r'))
-    parser_cv.add_argument('-o', '--output', type=FileType('w'), metavar='FILE',
-            help='save figure to %(metavar)s')
     parser_cv.set_defaults(func=crossval)
     return parser
 
