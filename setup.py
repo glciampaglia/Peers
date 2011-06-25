@@ -7,7 +7,7 @@ _I = [ get_include(), 'peers']
 setup(
         name='peers',
         description='An agent-based simulator for the Peers model.',
-        version=0.0.1,
+        version='0.0.1',
         author='Giovanni Luca Ciampaglia',
         author_email='ciampagg@usi.ch',
         packages=[
