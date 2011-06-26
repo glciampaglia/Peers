@@ -125,13 +125,19 @@ def reportfit(args, data, estimates, auxiliaries, error=None, interval=None,
         model.bounds = (xmin, xmax)
         model.means = auxiliaries[:,:C].ravel()
         model.covars = auxiliaries[:,C:2 * C].ravel()
-        model.weights = auxiliaries[:,2 * C:].ravel()
+        w = auxiliaries[:,2 * C:].ravel()
+        if np.sum(w) != 1.0:
+            w /= w.sum()
+        model.weights = w
         d = model.pdf(x)
     else:
         model = GMM(C)
         model.means = auxiliaries[:,:C].reshape((C,1))
         model.covars = auxiliaries[:,C:2 * C].reshape((C,1))
-        model.weights = auxiliaries[:,2 * C:].ravel()
+        w = auxiliaries[:,2 * C:].ravel()
+        if np.sum(w) != 1.0:
+            w /= w.sum()
+        model.weights = w
         d = np.exp(model.score(x[:,np.newaxis]))
     pp.hist(data, bins=25, normed=True, fc='none', ec='k')
     pp.plot(x, d, 'r-')
@@ -182,6 +188,7 @@ def _fit(thetasim, betasim, beta, bounds=None, weights=None, fmintries=5, **gppa
                    the error function is obtained
     err_fit      - the minimum of the error function
     '''
+    beta = np.ravel(beta)
     gp = SurrogateModel.fitGP(thetasim, betasim, **gpparams)
     if weights is None:
         weights = np.eye(len(beta))
@@ -242,16 +249,16 @@ def reportcrossval(args, *cvresults):
     fw, fh = pp.rcParams['figure.figsize']
     figsize = h * fh, w * fw
     fig = pp.figure(figsize=figsize)
-    fields = ['parameter','slope', 'intercept', 'error', 'R^2', 'P-value']
+    fields = ['parameter','slope', 'intercept', 'R^2', 'P-value', 'error']
     writer = csv.DictWriter(sys.stdout, fields,
             dialect=csv.get_dialect('excel'))
     writer.writerow(dict(zip(writer.fieldnames, writer.fieldnames)))
     for i in xrange(args.parameters):
         name = args.paramnames[i]
         x, y = cvresults[i]
-        regr_res = linregress(x, y)
+        slope, intercept, r, pvalue, err = linregress(x, y)
         row = { 'parameter' : name }
-        row.update(zip(fields[1:], regr_res))
+        row.update(zip(fields[1:], (slope, intercept, r ** 2, pvalue, err)))
         writer.writerow(row)
         ax = pp.subplot(h,w,i)
         ax.plot(x, y, ' o', c='white', figure=fig, axes=ax)
