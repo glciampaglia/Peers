@@ -21,7 +21,7 @@ _fields = [ 'mean-%d', 'variance-%d', 'weight-%d' ]
 
 def _getfields(n):
     global _fields
-    return reduce(list.__add__, [[ f % i for f in _fields ] for i in xrange(n)])
+    return reduce(list.__add__, [[ f % i for i in xrange(n) ] for f in _fields])
 
 def _reduce(args):
     reader = csv.reader(args.indexfile, delimiter=',', quoting=0)
