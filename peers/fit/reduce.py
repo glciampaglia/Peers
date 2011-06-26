@@ -43,7 +43,7 @@ def _reduce(args):
     fields = params[:-1] + _getfields(C/3)
     writer = csv.DictWriter(sys.stdout, fields, delimiter=',', quoting=0)
     kf = lambda k : tuple(k[:N])
-    writer.writeheader()
+    writer.writerow(dict(zip(writer.fieldnames, writer.fieldnames)))
     for key, subiter in groupby(arr, kf):
         row = dict(zip(fields, key))
         x = np.asarray([ r[N:] for r in subiter ])

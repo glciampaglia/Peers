@@ -107,7 +107,7 @@ def reportfit(args, data, estimates, auxiliaries, error=None, interval=None,
         level=95):
     fields = ['parameter', 'estimate', 'error', 'level', 'confint']
     writer = csv.DictWriter(sys.stdout, fields, dialect=csv.get_dialect('excel'))
-    writer.writeheader()
+    writer.writerow(dict(zip(writer.fieldnames, writer.fieldnames)))
     if error is not None:
         for items in zip(args.paramnames, estimates, error, interval):
             writer.writerow(dict(zip(fields, items)))
@@ -245,7 +245,7 @@ def reportcrossval(args, *cvresults):
     fields = ['parameter','slope', 'intercept', 'error', 'R^2', 'P-value']
     writer = csv.DictWriter(sys.stdout, fields,
             dialect=csv.get_dialect('excel'))
-    writer.writeheader()
+    writer.writerow(dict(zip(writer.fieldnames, writer.fieldnames)))
     for i in xrange(args.parameters):
         name = args.paramnames[i]
         x, y = cvresults[i]

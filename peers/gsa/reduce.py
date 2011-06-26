@@ -20,7 +20,7 @@ def main(args):
         outfields = parameters + [ 'average' ]
     writer = csv.DictWriter(sys.stdout, outfields, dialect=dialect)
     keyfunc = lambda row : tuple([ row[name] for name in parameters ])
-    writer.writeheader()
+    writer.writerow(dict(zip(writer.fieldnames, writer.fieldnames)))
     for k, subiter in groupby(reader, keyfunc):
         averages = []
         for row in subiter:

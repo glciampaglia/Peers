@@ -92,10 +92,10 @@ def main(args):
         row.update(zip(paramnames, inter))
         interrows.append(dict(row))
     print '; main effects'
-    writer.writeheader()
+    writer.writerow(dict(zip(writer.fieldnames, writer.fieldnames)))
     writer.writerows(mainrows)
     print '; interaction effects'
-    writer.writeheader()
+    writer.writerow(dict(zip(writer.fieldnames, writer.fieldnames)))
     writer.writerows(interrows)
 
 def make_parser():
