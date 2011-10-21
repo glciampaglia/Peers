@@ -1,1 +1,5 @@
 *.pyc
+
+# files created by distutils
+dist
+MANIFEST
