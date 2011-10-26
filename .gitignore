@@ -1,4 +1,7 @@
 *.pyc
+.*.swp
+build/*
+*.so
 
 # files created by distutils
 dist
