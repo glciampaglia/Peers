@@ -90,7 +90,7 @@ def fit(args):
     print_info(args)
     R = 3 * args.components # number of GMM parameters
     X, Y = gettxtdata(args.simulations, R, delimiter=args.delimiter, skiprows=1)
-    theta = fitgmm(data, args.components)
+    theta = fitgmm(data, args.components, args.truncated)
     estfit, auxfit, errfit = _fit(X, Y, theta, bounds=args.bounds, 
             weights=args.weights, **args.gpparams)
     if args.bootstrap:
@@ -143,11 +143,11 @@ def reportfit(args, data, estimates, auxiliaries, error=None, interval=None,
     pp.plot(x, d, 'r-')
     pp.xlabel('days')
     pp.ylabel('density')
-    pp.show()
+    pp.draw()
 
 # wrapper function needed by bootstrap
 def _targetfit(sample, xsim, ysim, bounds, components=2, weights=None, **gpparams):
-    theta = fitgmm(sample, components)
+    theta = fitgmm(sample, components, truncated)
     xopt, topt, fopt = _fit(xsim, ysim, theta, bounds, weights, **gpparams)
     return xopt
 
@@ -264,13 +264,14 @@ def reportcrossval(args, *cvresults):
         ax.plot(x, y, ' o', c='white', figure=fig, axes=ax)
         xlim = x.min(), x.max()
         ax.plot(xlim, xlim, 'r-', alpha=.75)
-        pp.axis('tight')
+        pp.xlim(*xlim)
+        pp.ylim(*xlim)
         pp.xlabel(r'observed', fontsize='small')
         pp.ylabel(r'estimated', fontsize='small')
         pp.title(sanetext(name), fontsize='small')
         pp.draw()
     fig.subplots_adjust(hspace=.5, wspace=.3)
-    pp.show()
+    pp.draw()
 
 def main(args):
     if (args.bounds is not None) and args.parameters != len(args.bounds):
@@ -280,6 +281,9 @@ def main(args):
             thetaU = args.thetaU, 
             thetaL = args.thetaL,
             nugget = args.nugget,
+            corr = args.corr,
+            random_start = 5,
+            optimizer = 'Welch',
     )
     # get field names from input or from simulations file
     if args.fields is not None:
@@ -303,6 +307,7 @@ def main(args):
     args.func(args)
     if args.output is not None:
         pp.savefig(args.output, format=fmt(args.output.name))
+    pp.show()
 
 def make_parser():
     # common arguments are put in a parent parser 
@@ -321,6 +326,10 @@ def make_parser():
             ' (default: %(default)g)', metavar='VALUE')
     parent.add_argument('-N', '--nugget', type=float, help='GP parameter nugget'
             ' (default: %(default)g)', metavar='VALUE')
+    parent.add_argument('-a', '--absolute', action='store_const',
+            const='absolute_exponential', default='squared_exponential',
+            dest='corr', help='use absolute exponential correlation model'\
+            '(default: squared exp.)')
     parent.add_argument('-t', '--truncated', action='store_true')
     parent.add_argument('-b', '--bounds', type=float, nargs=2, metavar='VALUE',
             action=AppendTupleAction, help='simulation parameter bounds')
