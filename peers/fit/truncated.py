@@ -416,28 +416,28 @@ def make_parser():
             help='input file delimiter (default: \'%(default)s\')')
     parser.add_argument('-p', '--plot', action='store_true')
     parser.add_argument('-o', '--outputfile')
+    parser.add_argument('-t', '--title', help='figure title')
     parser.add_argument('-P', '--profile', action='store_true')
     parser.add_argument('-PF', '--prof-file', metavar='FILE', 
             default=os.path.splitext(os.path.basename(__file__))[0]+'.prof')
     parser.add_argument('--nofast', action='store_true', help='Python implementation')
     return parser
 
-def plot(data, model, bins=10, output=None, **params):
+def plot(data, model, bins=10, output=None, title=None, **kwargs):
     '''
-    produces stacked area plots
+    produces stacked area plots. 
+
+    Additional parameters are passed to peers.graphics.mixturehist
     '''
     fig = pp.figure()
     means = model.means.ravel()
     deviations = np.sqrt(np.asarray(model.covars).ravel())
     RV = [ tnorm(m, s, model.bounds) for m,s in zip(means, deviations) ]
-    mixturehist(data, RV, model.weights, figure=fig)
+    mixturehist(data, RV, model.weights, figure=fig, bins=bins, **kwargs)
     pp.xlabel(r'$u = \mathrm{log}(\tau)$ (days)')
     pp.ylabel(r'Prob. Density $p(x)$')
-    if len(params):
-        title = ', '.join(map(lambda item : ' = '.join(item), params.items()))
-        pp.title(sanetext(title), fontsize='small')
-    elif output is not None:
-        pp.title(sanetext(output), fontsize='small')
+    if title is not None:
+        pp.title(sanetext(title))
     pp.draw()
     if output is not None:
         pp.savefig(output, format=fmt(output, 'pdf'))
@@ -483,7 +483,7 @@ def main(args):
         tgmm.weights = weights
         tgmm.means = means
         tgmm.covars = sigmas ** 2
-        plot(data, tgmm, 50, output=args.outputfile)
+        plot(data, tgmm, 50, output=args.outputfile, title=args.title)
     return weights, means, sigmas, ll, flag
 
 if __name__ == '__main__':
